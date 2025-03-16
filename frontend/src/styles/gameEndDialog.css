@@ -1,0 +1,39 @@
+.game-end-dialog {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.dialog-content {
+  background-color: white;
+  padding: 20px;
+  border-radius: 10px;
+  text-align: center;
+}
+
+.game-end-dialog.player {
+  animation: confetti 2s infinite;
+}
+
+.game-end-dialog.opponent {
+  animation: opponentParticles 2s infinite;
+}
+
+@keyframes confetti {
+  0% { background-color: #f0f; }
+  50% { background-color: #0ff; }
+  100% { background-color: #f0f; }
+}
+
+@keyframes opponentParticles {
+  0% { background-color: #f00; }
+  50% { background-color: #ff0; }
+  100% { background-color: #f00; }
+}

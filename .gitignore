@@ -1,0 +1,74 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Production builds
+build/
+dist/
+*/build/
+*/dist/
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*storybook.log
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# AWS specific
+.aws-sam/
+.serverless/
+
+# SSH Keys and Credentials
+*.pem
+*_rsa
+*_dsa
+*.key
+*.pub
+suimon-backend-key*
+
+# AWS Cognito and Authentication
+aws-exports.js
+amplify/
+.amplify/
+**/aws-exports.js
+**/amplify/
+**/aws-config.js
+**/cognito-config.js
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+.terraform.tfstate.lock.info
+
+# Ignore Terraform provider binaries
+.terraform/
+.terraform/**/*
+.terraform.lock.hcl
+
+# Ignore AWS CLI package
+AWSCLIV2.pkg
+
+# Deployment backup
+deployment-backup/

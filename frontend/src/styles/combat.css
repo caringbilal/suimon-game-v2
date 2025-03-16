@@ -1,0 +1,306 @@
+.health-bar-container {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.health-bar-container.opponent {
+  border-color: var(--danger-color);
+}
+
+.health-bar-container.player {
+  border-color: var(--primary-color);
+}
+
+.health-bar-label {
+  color: var(--text-color);
+  font-size: 1.2rem;
+  font-weight: bold;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.hp-bar {
+  height: 35px;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 20px;
+  overflow: hidden;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  position: relative;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.hp-fill {
+  position: relative;
+  height: 100%;
+  transition: width 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+  background: linear-gradient(90deg, #2ecc71, #27ae60);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: bold;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  .hp-fill span {
+    position: absolute;
+    width: 100%;
+    text-align: center;
+    color: white;
+    font-weight: bold;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+    z-index: 1;
+    left: 0;
+    right: 0;
+    font-size: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+}
+
+.hp-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.1) 25%,
+    rgba(255, 255, 255, 0.2) 50%,
+    rgba(255, 255, 255, 0.1) 75%
+  );
+  background-size: 200% 100%;
+  animation: hp-shine 2s linear infinite;
+}
+
+.hp-fill.damage {
+  background: linear-gradient(90deg, #ff4757, #ff6b81);
+  animation: shake 0.8s ease-in-out;
+}
+
+.hp-fill.healing {
+  background: linear-gradient(90deg, #2ecc71, #27ae60);
+  animation: pulse 0.8s ease-in-out;
+}
+
+@keyframes hp-shine {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+.damage-number {
+  position: absolute;
+  font-size: 2.5rem;
+  font-weight: bold;
+  color: #ff4757;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+  animation: damage-float 1.5s ease-out forwards;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.player-damage {
+  bottom: 30%;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.opponent-damage {
+  top: 30%;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+@keyframes damage-float {
+  0% {
+    opacity: 0;
+    transform: translateY(0) translateX(-50%) scale(0.8);
+  }
+  20% {
+    opacity: 1;
+    transform: translateY(-10px) translateX(-50%) scale(1.2);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-30px) translateX(-50%) scale(1);
+  }
+}
+
+.combat-log {
+  position: fixed;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 280px;
+  max-height: 400px;
+  overflow-y: auto;
+  background: rgba(0, 0, 0, 0.8);
+  border-radius: 10px;
+  padding: 15px;
+  color: white;
+  z-index: 100;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.combat-log-entry {
+  margin-bottom: 8px;
+  padding: 8px;
+  border-radius: 6px;
+  animation: fadeIn 0.3s ease-in-out;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.combat-log-entry.attack {
+  color: #ff6b6b;
+  border-left: 3px solid #ff6b6b;
+}
+
+.combat-log-entry.defense {
+  color: #4ecdc4;
+  border-left: 3px solid #4ecdc4;
+}
+
+.combat-log-entry.death {
+  color: #ff4757;
+  border-left: 3px solid #ff4757;
+  font-weight: bold;
+}
+
+.combat-log-entry.info {
+  color: #70a1ff;
+  border-left: 3px solid #70a1ff;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.combat-log::-webkit-scrollbar {
+  width: 8px;
+}
+
+.combat-log::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+}
+
+.combat-log::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+
+.combat-log::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.kill-counter {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px;
+  margin: 12px;
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  font-size: 1.1em;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+}
+
+.kill-stat {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.kill-label {
+  font-weight: bold;
+  color: #aaa;
+}
+
+.kill-value {
+  color: #ff6b6b;
+  font-weight: bold;
+  font-size: 1.2em;
+}
+.combat-stats-display {
+  background: rgba(0, 0, 0, 0.7);
+  border-radius: 8px;
+  padding: 15px;
+  margin: 10px;
+  width: 300px;
+  max-height: 400px;
+  overflow-y: auto;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+}
+
+.combat-stats-title {
+  color: #fff;
+  font-size: 1.2em;
+  font-weight: bold;
+  margin-bottom: 10px;
+  text-align: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+  padding-bottom: 5px;
+}
+
+.combat-stats-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.combat-log-entry {
+  padding: 8px;
+  border-radius: 4px;
+  font-size: 0.9em;
+  line-height: 1.4;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.combat-log-entry.attack {
+  background: rgba(255, 50, 50, 0.2);
+  border-left: 3px solid #ff5050;
+}
+
+.combat-log-entry.defense {
+  background: rgba(50, 150, 255, 0.2);
+  border-left: 3px solid #3296ff;
+}
+
+.combat-log-entry.info {
+  background: rgba(255, 255, 255, 0.15);
+  border-left: 3px solid #ffffff;
+}
+
+.combat-log-entry.death {
+  background: rgba(128, 0, 128, 0.2);
+  border-left: 3px solid #800080;
+}
