@@ -114,10 +114,16 @@ function App() {
   // Load players and games data
   useEffect(() => {
     if (isAuthenticated) {
-      // Here you would typically fetch players and games data from your backend
-      // For now, we'll use empty arrays
-      setPlayers([]);
-      setGames([]);
+      // Fetch players and games data from the backend
+      fetch(`${SERVER_URL}/players`)
+        .then(response => response.json())
+        .then(data => setPlayers(data))
+        .catch(error => console.error('Error fetching players:', error));
+
+      fetch(`${SERVER_URL}/games`)
+        .then(response => response.json())
+        .then(data => setGames(data))
+        .catch(error => console.error('Error fetching games:', error));
     }
   }, [isAuthenticated]);
 
@@ -320,13 +326,18 @@ function App() {
 
   // If game is over, show game over screen
   if (gameState && gameState.gameStatus === 'finished') {
-    const winner = gameState.players.player.energy <= 0 ? 'opponent' : 'player';
+    const playerEnergy = gameState.players.player.energy;
+    const opponentEnergy = gameState.players.opponent.energy;
+    // Determine winner based on who reached zero energy first (based on turn)
+    const winner = gameState.currentTurn === 'player' ? 'opponent' : 'player';
     return (
       <GameOver
         winner={winner}
         playerInfo={currentPlayerInfo}
         opponentInfo={currentOpponentInfo}
         killCount={gameState.killCount}
+        playerEnergy={playerEnergy}
+        opponentEnergy={opponentEnergy}
         onPlayAgain={() => {
           setGameState(null);
           setRoomId(null);
@@ -356,7 +367,6 @@ function App() {
             socket={socket}
             onCardDefeated={(defeatedPlayerKey) => handleCardDefeated(defeatedPlayerKey)}
           />
-          <LeaderboardTable players={players} games={games} />
         </div>
       </DndProvider>
     );
@@ -372,6 +382,8 @@ function App() {
       </div>
       
       <h1>Suimon Card Game</h1>
+      
+      <LeaderboardTable players={players} games={games} />
       <div className="room-controls">
         <button onClick={createRoom} className="create-room-btn">
           Create New Game

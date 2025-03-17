@@ -7,9 +7,11 @@ interface GameOverProps {
   opponentInfo: { name: string; avatar: string };
   killCount: { player: number; opponent: number };
   onPlayAgain: () => void;
+  playerEnergy?: number;
+  opponentEnergy?: number;
 }
 
-const GameOver: React.FC<GameOverProps> = ({ winner, playerInfo, opponentInfo, killCount, onPlayAgain }) => {
+const GameOver: React.FC<GameOverProps> = ({ winner, playerInfo, opponentInfo, killCount, onPlayAgain, playerEnergy = 0, opponentEnergy = 0 }) => {
   const isVictory = winner === 'player';
   
   return (
@@ -29,6 +31,7 @@ const GameOver: React.FC<GameOverProps> = ({ winner, playerInfo, opponentInfo, k
             <div className="stat-details">
               <span className="stat-label">{playerInfo.name}</span>
               <span className="stat-value">Kills: {killCount.player}</span>
+              <span className="stat-value">Final Energy: {playerEnergy}</span>
             </div>
           </div>
           <div className="stat-item">
@@ -36,6 +39,7 @@ const GameOver: React.FC<GameOverProps> = ({ winner, playerInfo, opponentInfo, k
             <div className="stat-details">
               <span className="stat-label">{opponentInfo.name}</span>
               <span className="stat-value">Kills: {killCount.opponent}</span>
+              <span className="stat-value">Final Energy: {opponentEnergy}</span>
             </div>
           </div>
         </div>
