@@ -13,6 +13,7 @@ import PlayerProfile from './assets/ui/Player_Profile.jpg';
 import OpponentProfile from './assets/ui/AIPlayer_Profile.jpg';
 import { useAuth } from './context/AuthContext';
 import LogoutButton from './components/LogoutButton';
+import LeaderboardTable from './components/LeaderboardTable';
 
 // Define the server URL for AWS deployment
 const SERVER_URL = process.env.REACT_APP_API_URL || 'http://52.42.119.120:3002'; // AWS EC2 instance URL
@@ -89,6 +90,8 @@ function App() {
   const [playerRole, setPlayerRole] = useState<'player1' | 'player2' | null>(null);
   const [joinRoomInput, setJoinRoomInput] = useState('');
   const [dialogMessage, setDialogMessage] = useState<string | null>(null);
+  const [players, setPlayers] = useState<Array<{ playerId: string; playerName: string; createdAt: number; updatedAt: number; }>>([]);
+  const [games, setGames] = useState<Array<{ gameId: string; startTime: number; player1Id: string; player2Id: string; gameState: string; winner: string; }>>([]);
 
   // Determine player info based on role
   const currentPlayerInfo = playerRole === 'player2' ? player2Info : player1Info;
@@ -107,6 +110,16 @@ function App() {
       };
     });
   }, []);
+
+  // Load players and games data
+  useEffect(() => {
+    if (isAuthenticated) {
+      // Here you would typically fetch players and games data from your backend
+      // For now, we'll use empty arrays
+      setPlayers([]);
+      setGames([]);
+    }
+  }, [isAuthenticated]);
 
   // Initialize socket connection
   const initializeSocket = useCallback(() => {
@@ -343,6 +356,7 @@ function App() {
             socket={socket}
             onCardDefeated={(defeatedPlayerKey) => handleCardDefeated(defeatedPlayerKey)}
           />
+          <LeaderboardTable players={players} games={games} />
         </div>
       </DndProvider>
     );
