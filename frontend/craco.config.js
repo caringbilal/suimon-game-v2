@@ -3,8 +3,8 @@ module.exports = {
     configure: (webpackConfig) => {
       webpackConfig.resolve.alias = {
         ...webpackConfig.resolve.alias,
-        '@components': 'src/components',
-        '@data': 'src/data'
+        '@components': `${__dirname}/src/components`,
+        '@data': `${__dirname}/src/data`
       };
       return webpackConfig;
     }
