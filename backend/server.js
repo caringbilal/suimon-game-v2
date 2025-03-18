@@ -1,31 +1,78 @@
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
-const AWS = require('aws-sdk');
-const { playerOperations, gameOperations } = require('./database/dynamodb');
+const db = require('./database/sqlite');
+const cors = require('cors');
 
-// Configure AWS
-AWS.config.update({
-  region: process.env.AWS_REGION || 'us-west-2',
-  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
-});
+// Initialize SQLite database
+db.initializeDatabase().catch(console.error);
 
 const app = express();
+app.use(cors());
+app.use(express.json());
 const server = http.createServer(app);
 
-// Enable CORS for all routes
-app.use((req, res, next) => {
-  const allowedOrigins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ['*'];
-  const origin = req.headers.origin;
-  
-  if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin);
+// Player registration endpoint
+
+// API endpoints
+app.get('/players', async (req, res) => {
+  try {
+    const players = await db.getAllPlayers();
+    res.json(players);
+  } catch (error) {
+    console.error('Error fetching players:', error);
+    res.status(500).json({ error: 'Failed to fetch players' });
   }
-  
-  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
-  next();
+});
+
+app.get('/games', async (req, res) => {
+  try {
+    // Use the db.db.all method to query the database
+    const games = await new Promise((resolve, reject) => {
+      db.db.all('SELECT * FROM games', [], (err, rows) => {
+        if (err) reject(err);
+        resolve(rows);
+      });
+    });
+    res.json(games);
+  } catch (error) {
+    console.error('Error fetching games:', error);
+    res.status(500).json({ error: 'Failed to fetch games' });
+  }
+});
+
+// Player registration endpoint
+
+// Player registration endpoint
+app.post('/players', async (req, res) => {
+  try {
+    const { playerId, playerName } = req.body;
+    if (!playerId || !playerName) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const existingPlayer = await db.getPlayer(playerId);
+    if (existingPlayer) {
+      // Update existing player
+      await db.logoutPlayer(playerId);
+      res.json(existingPlayer);
+    } else {
+      // Create new player
+      const newPlayer = await db.createPlayer({ playerId, playerName });
+      res.json(newPlayer);
+    }
+    
+    // Store the player ID in any active socket connections for this player
+    // This will be used to associate socket IDs with player IDs
+    io.sockets.sockets.forEach(socket => {
+      if (socket.handshake.query && socket.handshake.query.playerId === playerId) {
+        socket.playerId = playerId;
+      }
+    });
+  } catch (error) {
+    console.error('Error registering player:', error);
+    res.status(500).json({ error: 'Failed to register player' });
+  }
 });
 
 // Define PORT constant once - using a different port to avoid conflicts
@@ -56,6 +103,12 @@ io.on('connection', (socket) => {
   console.log('A player connected:', socket.id);
   console.log('Current game states on connection:', JSON.stringify(gameStates, null, 2));
 
+  // Store player ID in socket if provided in handshake query
+  if (socket.handshake.query && socket.handshake.query.playerId) {
+    socket.playerId = socket.handshake.query.playerId;
+    console.log(`Associated socket ${socket.id} with player ${socket.playerId}`);
+  }
+
   // Send initial connection success event
   socket.emit('connected', { id: socket.id });
 
@@ -67,9 +120,9 @@ io.on('connection', (socket) => {
       if (room.player1 === socket.id || room.player2 === socket.id) {
         console.log(`Cleaning up room ${roomId} due to player ${socket.id} disconnection`);
         io.to(roomId).emit('playerDisconnected', { reason });
-        // Update game state in DynamoDB
+        // Update game state in SQLite
         try {
-          await gameOperations.endGame(roomId, null);
+          await db.updateGameState(roomId, 'ended');
         } catch (error) {
           console.error('Error updating game state on disconnect:', error);
         }
@@ -121,13 +174,18 @@ io.on('connection', (socket) => {
       room.player2 = socket.id;
       console.log(`Player 2 (${socket.id}) successfully joined room ${roomId}`);
 
-      // Create game record in DynamoDB
+      // Create game record in SQLite
       try {
-        await gameOperations.createGame({
-          roomId,
-          player1Id: room.player1,
-          player2Id: room.player2,
-          gameState: room.gameState
+        // Get player information from socket IDs to store player names
+        const player1Socket = io.sockets.sockets.get(room.player1);
+        const player2Socket = io.sockets.sockets.get(room.player2);
+        
+        // Create the game with player IDs
+        await db.createGame({
+          gameId: roomId,
+          player1Id: player1Socket?.playerId || room.player1,
+          player2Id: player2Socket?.playerId || room.player2,
+          gameState: 'active'
         });
       } catch (error) {
         console.error('Error creating game record:', error);
@@ -163,11 +221,11 @@ io.on('connection', (socket) => {
       // Update the server-side game state
       gameStates[roomId].gameState = newGameState;
 
-      // Update game state in DynamoDB
+      // Update game state in SQLite
       try {
-        await gameOperations.updateGame(roomId, newGameState);
+        await db.updateGameState(roomId, JSON.stringify(newGameState));
       } catch (error) {
-        console.error('Error updating game state in DynamoDB:', error);
+        console.error('Error updating game state in SQLite:', error);
       }
 
       // Broadcast to all players in the room
@@ -177,14 +235,16 @@ io.on('connection', (socket) => {
       // Check for game end condition
       if (newGameState.gameStatus === 'finished') {
         const winner = newGameState.players.player.energy <= 0 ? 'opponent' : 'player';
-        const winnerId = winner === 'player' ? gameStates[roomId].player1 : gameStates[roomId].player2;
+        const winnerSocketId = winner === 'player' ? gameStates[roomId].player1 : gameStates[roomId].player2;
         
         try {
-          await gameOperations.endGame(roomId, winnerId);
-          // Update player statistics
-          const loserId = winner === 'player' ? gameStates[roomId].player2 : gameStates[roomId].player1;
-          await playerOperations.updatePlayer(winnerId, { $inc: { wins: 1 } });
-          await playerOperations.updatePlayer(loserId, { $inc: { losses: 1 } });
+          // Get the winner's socket to access their player ID
+          const winnerSocket = io.sockets.sockets.get(winnerSocketId);
+          const winnerId = winnerSocket?.playerId || winnerSocketId;
+          
+          await db.updateGameState(roomId, 'finished');
+          await db.updateGameWinner(roomId, winnerId);
+          console.log(`Game ${roomId} finished. Winner: ${winnerId}`);
         } catch (error) {
           console.error('Error updating game end state:', error);
         }

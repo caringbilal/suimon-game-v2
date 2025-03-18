@@ -36,6 +36,11 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ players, games }) =
     );
   };
 
+  const playerStats = new Map(players.map(player => {
+    const stats = calculatePlayerStats(player.playerId);
+    const winRate = stats.totalGames > 0 ? ((stats.wins / stats.totalGames) * 100).toFixed(1) : '0.0';
+    return [player.playerId, { ...stats, winRate }];
+  }));
   return (
     <div className="leaderboard-container">
       <div className="table-section">
@@ -51,7 +56,7 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ players, games }) =
             </tr>
           </thead>
           <tbody>
-            {games.map((game) => {
+            {games.length > 0 ? games.map((game) => {
               const player1 = players.find(p => p.playerId === game.player1Id);
               const player2 = players.find(p => p.playerId === game.player2Id);
               const winner = players.find(p => p.playerId === game.winner);
@@ -65,7 +70,11 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ players, games }) =
                   <td>{new Date(game.startTime).toLocaleString()}</td>
                 </tr>
               );
-            })}
+            }) : (
+              <tr>
+                <td colSpan={5} className="no-data-message">No game data available</td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -83,22 +92,22 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ players, games }) =
             </tr>
           </thead>
           <tbody>
-            {players.map((player) => {
-              const stats = calculatePlayerStats(player.playerId);
-              const winRate = stats.totalGames > 0
-                ? ((stats.wins / stats.totalGames) * 100).toFixed(1)
-                : '0.0';
-              
+            {players.length > 0 ? players.map((player) => {
+              const stats = playerStats.get(player.playerId) || { totalGames: 0, wins: 0, winRate: '0.0' };
               return (
                 <tr key={player.playerId}>
-                  <td>{player.playerName}</td>
+                  <td>{player.playerName || 'Unknown'}</td>
                   <td>{stats.totalGames}</td>
                   <td>{stats.wins}</td>
-                  <td>{winRate}%</td>
-                  <td>{new Date(player.createdAt).toLocaleDateString()}</td>
+                  <td>{stats.winRate}%</td>
+                  <td>{player.createdAt ? new Date(player.createdAt).toLocaleDateString() : 'N/A'}</td>
                 </tr>
               );
-            })}
+            }) : (
+              <tr>
+                <td colSpan={5} className="no-data-message">No player data available</td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

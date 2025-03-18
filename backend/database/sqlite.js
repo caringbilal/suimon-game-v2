@@ -50,6 +50,28 @@ const getPlayer = async (playerId) => {
   });
 };
 
+const getPlayerByGoogleId = async (googleId) => {
+  return new Promise((resolve, reject) => {
+    db.get('SELECT * FROM players WHERE playerId = ?', [googleId], (err, row) => {
+      if (err) reject(err);
+      resolve(row);
+    });
+  });
+};
+
+const logoutPlayer = async (playerId) => {
+  return new Promise((resolve, reject) => {
+    db.run(
+      'UPDATE players SET updatedAt = ? WHERE playerId = ?',
+      [Date.now(), playerId],
+      (err) => {
+        if (err) reject(err);
+        resolve({ success: true });
+      }
+    );
+  });
+};
+
 const createPlayer = async (playerData) => {
   const { playerId, playerName } = playerData;
   const now = Date.now();
@@ -105,11 +127,39 @@ const updateGameState = async (gameId, gameState) => {
   });
 };
 
+const updateGameWinner = async (gameId, winner) => {
+  return new Promise((resolve, reject) => {
+    db.run(
+      'UPDATE games SET winner = ? WHERE gameId = ?',
+      [winner, gameId],
+      (err) => {
+        if (err) reject(err);
+        resolve({ gameId, winner });
+      }
+    );
+  });
+};
+
+// Get all players
+const getAllPlayers = async () => {
+  return new Promise((resolve, reject) => {
+    db.all('SELECT * FROM players', [], (err, rows) => {
+      if (err) reject(err);
+      resolve(rows);
+    });
+  });
+};
+
 module.exports = {
   initializeDatabase,
   getPlayer,
+  getPlayerByGoogleId,
   createPlayer,
+  logoutPlayer,
   createGame,
   getGame,
-  updateGameState
+  updateGameState,
+  updateGameWinner,
+  getAllPlayers,
+  db
 };

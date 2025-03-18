@@ -3,8 +3,11 @@ const http = require('http');
 const socketIo = require('socket.io');
 const cors = require('cors');
 
-// Import DynamoDB operations
-const { playerOperations, gameOperations } = require('../database/dynamodb');
+// Import SQLite operations
+const db = require('../database/sqlite');
+
+// Initialize SQLite database
+db.initializeDatabase().catch(console.error);
 
 // Define Constants from Environment
 const PORT = process.env.PORT || 3002;
@@ -62,6 +65,49 @@ io.on('connection', (socket) => {
   console.log('Current game states on connection:', JSON.stringify(gameStates, null, 2));
 
   socket.emit('connected', { id: socket.id }); // Initial connect success event
+
+  // Handle Google authentication
+  socket.on('googleAuth', async (googleData) => {
+    try {
+      const { googleId, displayName } = googleData;
+      
+      // Check if user exists
+      let player = await db.getPlayerByGoogleId(googleId);
+      
+      if (!player) {
+        // Create new player if doesn't exist
+        player = await db.createPlayer({
+          playerId: googleId,
+          playerName: displayName
+        });
+        console.log(`New player registered: ${displayName} (${googleId})`);
+      } else {
+        // Update existing player's last login
+        await db.logoutPlayer(googleId); // This actually updates the updatedAt timestamp
+        console.log(`Existing player logged in: ${displayName} (${googleId})`);
+      }
+      
+      // Store the player ID in the socket for future reference
+      socket.playerId = googleId;
+      
+      socket.emit('authSuccess', { player });
+    } catch (error) {
+      console.error('Authentication error:', error);
+      socket.emit('error', 'Authentication failed');
+    }
+  });
+
+  // Handle logout
+  socket.on('logout', async (playerId) => {
+    try {
+      await db.logoutPlayer(playerId);
+      socket.emit('logoutSuccess');
+      console.log(`Player ${playerId} logged out`);
+    } catch (error) {
+      console.error('Logout error:', error);
+      socket.emit('error', 'Logout failed');
+    }
+  });
 
   socket.on('disconnect', async (reason) => { // Handle player disconnection
     console.log(`Player ${socket.id} disconnected. Reason: ${reason}`);
@@ -159,6 +205,45 @@ io.on('connection', (socket) => {
         throw new Error('Room not found');
       }
 
+      // Update the server-side game state
+      gameStates[roomId].gameState = newGameState;
+
+      // Update game state in SQLite
+      try {
+        await db.updateGameState(roomId, JSON.stringify(newGameState));
+      } catch (error) {
+        console.error('Error updating game state in SQLite:', error);
+      }
+
+      // Broadcast to all players in the room
+      io.to(roomId).emit('gameStateUpdate', newGameState);
+      console.log(`Game state updated for room ${roomId}`);
+
+      // Check for game end condition
+      if (newGameState.gameStatus === 'finished') {
+        const winner = newGameState.players.player.energy <= 0 ? 'opponent' : 'player';
+        const winnerId = winner === 'player' ? gameStates[roomId].player1 : gameStates[roomId].player2;
+        
+        try {
+          await db.updateGameState(roomId, 'finished');
+          await db.updateGameWinner(roomId, winnerId);
+          console.log(`Game ${roomId} finished. Winner: ${winnerId}`);
+          
+          // Send personalized game result to each player
+          io.to(gameStates[roomId].player1).emit('gameStateUpdate', {
+            ...newGameState,
+            winner: winner === 'player' ? 'player' : 'opponent'
+          });
+          io.to(gameStates[roomId].player2).emit('gameStateUpdate', {
+            ...newGameState,
+            winner: winner === 'player' ? 'opponent' : 'player'
+          });
+          return; // Skip the general broadcast
+        } catch (error) {
+          console.error('Error updating game end state:', error);
+        }
+      }
+
       gameStates[roomId].gameState = newGameState;  // Update server-side state
 
       await gameOperations.updateGame(roomId, newGameState);
@@ -196,7 +281,13 @@ io.on('connection', (socket) => {
         const winnerId = winner === 'player' ? gameStates[roomId].player1 : gameStates[roomId].player2;
         
         try {
-          // Update winner's game, and get player ids from players or game stats
+          // Update winner's game in SQLite database
+          const db = require('../database/sqlite');
+          await db.updateGameWinner(roomId, winnerId);
+          console.log(`Game ${roomId} finished. Winner: ${winnerId}`);
+          
+          // Clean up game state
+          delete gameStates[roomId];
         } catch (error) {
           console.error('Error updating game end state:', error);
         }
@@ -228,6 +319,37 @@ io.on('connection', (socket) => {
 
 server.on('error', (error) => { // Log server errors
   console.error('Server error:', error);
+});
+
+// API endpoints for players and games
+app.get('/players', async (req, res) => {
+  try {
+    const players = await new Promise((resolve, reject) => {
+      db.all('SELECT * FROM players', [], (err, rows) => {
+        if (err) reject(err);
+        resolve(rows);
+      });
+    });
+    res.json(players);
+  } catch (error) {
+    console.error('Error fetching players:', error);
+    res.status(500).json({ error: 'Failed to fetch players' });
+  }
+});
+
+app.get('/games', async (req, res) => {
+  try {
+    const games = await new Promise((resolve, reject) => {
+      db.all('SELECT * FROM games', [], (err, rows) => {
+        if (err) reject(err);
+        resolve(rows);
+      });
+    });
+    res.json(games);
+  } catch (error) {
+    console.error('Error fetching games:', error);
+    res.status(500).json({ error: 'Failed to fetch games' });
+  }
 });
 
 // Start the server with correct variable set

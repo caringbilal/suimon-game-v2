@@ -16,7 +16,7 @@ import LogoutButton from './components/LogoutButton';
 import LeaderboardTable from './components/LeaderboardTable';
 
 // Define the server URL for AWS deployment
-const SERVER_URL = process.env.REACT_APP_API_URL || 'http://52.42.119.120:3002'; // AWS EC2 instance URL
+const SERVER_URL = process.env.REACT_APP_API_URL || 'http://localhost:3002'; // Local development server
 const socket: Socket = io(SERVER_URL, {
   transports: ['websocket', 'polling'],
   reconnection: true,
@@ -36,7 +36,7 @@ const player2Info = { name: 'Player 2', avatar: OpponentProfile };
 const LoginScreen: React.FC = () => {
   const { isLoading, error } = useAuth();
   
-  const handleGoogleSuccess = (credentialResponse: any) => {
+  const handleGoogleSuccess = async (credentialResponse: any) => {
     try {
       const decoded: any = jwtDecode(credentialResponse.credential);
       const userData = {
@@ -45,6 +45,26 @@ const LoginScreen: React.FC = () => {
         picture: decoded.picture,
         sub: decoded.sub,
       };
+      
+      // Create or update player in the database
+      try {
+        const response = await fetch(`${SERVER_URL}/players`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            playerId: decoded.sub,
+            playerName: decoded.name
+          })
+        });
+        if (!response.ok) {
+          throw new Error('Failed to register player');
+        }
+      } catch (error) {
+        console.error('Error registering player:', error);
+      }
+      
       localStorage.setItem('google_credential', credentialResponse.credential);
       window.location.reload();
     } catch (error) {
@@ -113,22 +133,50 @@ function App() {
 
   // Load players and games data
   useEffect(() => {
-    if (isAuthenticated) {
-      // Fetch players and games data from the backend
-      fetch(`${SERVER_URL}/players`)
-        .then(response => response.json())
-        .then(data => setPlayers(data))
-        .catch(error => console.error('Error fetching players:', error));
+    const fetchData = async () => {
+      try {
+        // Fetch players data
+        const playersResponse = await fetch(`${SERVER_URL}/players`);
+        if (!playersResponse.ok) {
+          throw new Error(`HTTP error! status: ${playersResponse.status}`);
+        }
+        const playersData = await playersResponse.json();
+        console.log('Fetched players data:', playersData);
+        setPlayers(Array.isArray(playersData) ? playersData : []);
 
-      fetch(`${SERVER_URL}/games`)
-        .then(response => response.json())
-        .then(data => setGames(data))
-        .catch(error => console.error('Error fetching games:', error));
+        // Fetch games data
+        const gamesResponse = await fetch(`${SERVER_URL}/games`);
+        if (!gamesResponse.ok) {
+          throw new Error(`HTTP error! status: ${gamesResponse.status}`);
+        }
+        const gamesData = await gamesResponse.json();
+        console.log('Fetched games data:', gamesData);
+        setGames(Array.isArray(gamesData) ? gamesData : []);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        setDialogMessage('Failed to load leaderboard data. Please try again later.');
+      }
+    };
+
+
+    if (isAuthenticated && user) {
+      fetchData();
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, user]);
+
 
   // Initialize socket connection
   const initializeSocket = useCallback(() => {
+    // Disconnect existing connection if any
+    if (socket.connected) {
+      socket.disconnect();
+    }
+    
+    // Set query parameters to include player ID if authenticated
+    if (user && user.sub) {
+      socket.io.opts.query = { playerId: user.sub };
+    }
+    
     socket.connect();
     socket.io.on("reconnect_attempt", () => {
       setDialogMessage("Attempting to reconnect...");
@@ -142,7 +190,7 @@ function App() {
     socket.io.on("reconnect_failed", () => {
       setDialogMessage("Failed to reconnect. Please refresh the page.");
     });
-  }, []);
+  }, [user]);
 
   // Handle Socket.IO events
   useEffect(() => {
@@ -328,8 +376,44 @@ function App() {
   if (gameState && gameState.gameStatus === 'finished') {
     const playerEnergy = gameState.players.player.energy;
     const opponentEnergy = gameState.players.opponent.energy;
-    // Determine winner based on who reached zero energy first (based on turn)
-    const winner = gameState.currentTurn === 'player' ? 'opponent' : 'player';
+    // Determine winner based on who has zero energy
+    const winner = playerEnergy <= 0 ? 'opponent' : 'player';
+
+    // Update game result in the database
+    if (user && roomId) {
+      const gameData = {
+        gameId: roomId,
+        startTime: Date.now(),
+        player1Id: playerRole === 'player1' ? user.sub : '',
+        player2Id: playerRole === 'player2' ? user.sub : '',
+        gameState: 'finished',
+        winner: winner === 'player' ? (playerRole === 'player1' ? user.sub : '') : (playerRole === 'player2' ? user.sub : '')
+      };
+
+      // Send game result to backend
+      fetch(`${SERVER_URL}/games`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(gameData)
+      })
+      .then(response => response.json())
+      .then(() => {
+        // Refresh leaderboard data
+        fetch(`${SERVER_URL}/games`)
+          .then(response => response.json())
+          .then(data => setGames(data))
+          .catch(error => console.error('Error fetching games:', error));
+
+        fetch(`${SERVER_URL}/players`)
+          .then(response => response.json())
+          .then(data => setPlayers(data))
+          .catch(error => console.error('Error fetching players:', error));
+      })
+      .catch(error => console.error('Error updating game result:', error));
+    }
+
     return (
       <GameOver
         winner={winner}
