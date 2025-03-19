@@ -1,5 +1,5 @@
-const { updatePlayerStats, getPlayer, getPlayerStats } = require('./players');
-const { saveGame, getGame, updateGame } = require('./games');
+const { updatePlayerStats, getPlayer, getPlayerStats } = require('../database/players');
+const { saveGame, getGame, updateGame } = require('../database/games');
 
 module.exports = (io) => {
     io.on('connection', (socket) => {
@@ -43,23 +43,16 @@ module.exports = (io) => {
         socket.on('getPlayer', async (playerId) => {
           try {
             let player = await getPlayer(playerId);
-            
-            if (!player) {
-              // If player doesn't exist, create a new one with Google data
-              const decoded = jwtDecode(socket.handshake.auth.token);
-              player = await createPlayer({
-                playerId: playerId,
-                playerName: decoded.name,
-                createdAt: Date.now(),
-                updatedAt: Date.now()
-              });
-            }
-
             const playerStats = await getPlayerStats(playerId);
-            socket.emit('playerData', { 
-              ...player,
-              stats: playerStats || { totalGames: 0, wins: 0, losses: 0, winRate: '0.00' }
-            });
+            
+            if (player) {
+              socket.emit('playerData', { 
+                ...player,
+                stats: playerStats || { totalGames: 0, wins: 0, losses: 0, winRate: '0.00' }
+              });
+            } else {
+              socket.emit('playerFetchError', 'Player not found');
+            }
           } catch (error) {
             console.error("Error fetching player:", error);
             socket.emit('playerFetchError', 'Failed to fetch player data.');

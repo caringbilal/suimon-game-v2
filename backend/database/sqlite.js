@@ -25,8 +25,9 @@ const initializeDatabase = () => {
         startTime INTEGER,
         player1Id TEXT,
         player2Id TEXT,
-        gameState TEXT,
+        gameState TEXT NOT NULL,
         winner TEXT,
+        player1Data TEXT,
         FOREIGN KEY (player1Id) REFERENCES players(playerId),
         FOREIGN KEY (player2Id) REFERENCES players(playerId)
       )
@@ -90,16 +91,16 @@ const createPlayer = async (playerData) => {
 
 // Game operations
 const createGame = async (gameData) => {
-  const { gameId, player1Id, player2Id, gameState } = gameData;
+  const { gameId, player1Id, player2Id, gameState, player1Data } = gameData;
   const startTime = Date.now();
 
   return new Promise((resolve, reject) => {
     db.run(
-      'INSERT INTO games (gameId, startTime, player1Id, player2Id, gameState) VALUES (?, ?, ?, ?, ?)',
-      [gameId, startTime, player1Id, player2Id, gameState],
+      'INSERT INTO games (gameId, startTime, player1Id, player2Id, gameState, player1Data) VALUES (?, ?, ?, ?, ?, ?)',
+      [gameId, startTime, player1Id, player2Id, gameState, JSON.stringify(player1Data)],
       (err) => {
         if (err) reject(err);
-        resolve({ gameId, startTime, player1Id, player2Id, gameState });
+        resolve({ gameId, startTime, player1Id, player2Id, gameState, player1Data });
       }
     );
   });

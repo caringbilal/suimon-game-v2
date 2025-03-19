@@ -220,10 +220,67 @@
   background: linear-gradient(90deg, #f44336, #d32f2f);
 }
 
-.player-info {
+.player-stats {
+  display: flex;
+  align-items: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.7);
+  border-radius: 8px;
+  margin: 1rem;
   width: 100%;
-  padding: 10px;
-  background-color: rgba(0, 0, 0, 0.2);
+  max-width: 400px;
+}
+
+.player-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+}
+
+.player-avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #fff;
+}
+
+.player-details {
+  flex: 1;
+}
+
+.player-details h3 {
+  margin: 0 0 0.5rem 0;
+  color: #fff;
+  font-size: 1.2rem;
+}
+
+.energy-bar {
+  background: rgba(255, 255, 255, 0.2);
+  height: 20px;
   border-radius: 10px;
-  margin: 10px 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.energy-fill {
+  background: linear-gradient(90deg, #4CAF50, #8BC34A);
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+.energy-text {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  color: #fff;
+  font-weight: bold;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.current-turn {
+  box-shadow: 0 0 15px rgba(255, 215, 0, 0.5);
+  border: 2px solid #ffd700;
 }

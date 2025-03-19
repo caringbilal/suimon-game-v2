@@ -385,3 +385,29 @@ export default React.memo<GameBoardProps>(({
     </div>
   );
 });
+
+// Player stats display
+const PlayerStats = ({ 
+  playerKey, 
+  energy, 
+  playerInfo, 
+  isCurrentTurn 
+}: {
+  playerKey: 'player' | 'opponent';
+  energy: number;
+  playerInfo: { name: string; avatar: string };
+  isCurrentTurn: boolean;
+}) => (
+  <div className={`player-stats ${playerKey}-stats ${isCurrentTurn ? 'current-turn' : ''}`}>
+    <div className="player-info">
+      <img src={playerInfo.avatar} alt={`${playerInfo.name}'s avatar`} className="player-avatar" />
+      <div className="player-details">
+        <h3>{playerInfo.name}</h3>
+        <div className="energy-bar">
+          <div className="energy-fill" style={{ width: `${(energy / 700) * 100}%` }}></div>
+          <span className="energy-text">{energy} Energy</span>
+        </div>
+      </div>
+    </div>
+  </div>
+);

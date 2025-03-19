@@ -28,10 +28,6 @@ const socket: Socket = io(SERVER_URL, {
   forceNew: true
 });
 
-// Player info constants
-const player1Info = { name: 'Player 1', avatar: PlayerProfile };
-const player2Info = { name: 'Player 2', avatar: OpponentProfile };
-
 // Login component
 const LoginScreen: React.FC = () => {
   const { isLoading, error } = useAuth();
@@ -113,9 +109,20 @@ function App() {
   const [players, setPlayers] = useState<Array<{ playerId: string; playerName: string; createdAt: number; updatedAt: number; }>>([]);
   const [games, setGames] = useState<Array<{ gameId: string; startTime: number; player1Id: string; player2Id: string; gameState: string; winner: string; }>>([]);
 
-  // Determine player info based on role
-  const currentPlayerInfo = playerRole === 'player2' ? player2Info : player1Info;
-  const currentOpponentInfo = playerRole === 'player2' ? player1Info : player2Info;
+  // Player info constants
+  const player1Info = {
+    name: playerRole === 'player1' ? (user?.name || 'Player 1') : 'Opponent',
+    avatar: playerRole === 'player1' ? (user?.picture || PlayerProfile) : OpponentProfile
+  };
+
+  const player2Info = {
+    name: playerRole === 'player2' ? (user?.name || 'Player 2') : 'Opponent',
+    avatar: playerRole === 'player2' ? (user?.picture || PlayerProfile) : OpponentProfile
+  };
+
+  // Determine current player and opponent info based on role
+  const currentPlayerInfo = playerRole === 'player1' ? player1Info : player2Info;
+  const currentOpponentInfo = playerRole === 'player1' ? player2Info : player1Info;
   
   // Memoized function to add combat log entries
   const addCombatLogEntry = useCallback((message: string, type: string = 'info') => {
