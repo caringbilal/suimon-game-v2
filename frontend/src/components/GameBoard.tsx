@@ -238,6 +238,33 @@ export default React.memo<GameBoardProps>(({
 
   return (
     <div className="game-board">
+      <div className="room-info-box">
+        <h3>Room ID: {roomId}</h3>
+        <div className="room-info-content">
+          <p>
+            Your Role: 
+            <span className={playerRole === 'player1' ? 'host' : ''}>
+              {playerRole === 'player1' ? 'Host (Player 1)' : 'Player 2'}
+              <span className={`status-dot ${playerRole === 'player1' ? 'host' : ''}`}></span>
+            </span>
+          </p>
+          <p>
+            Game Status: 
+            <span className={gameState.gameStatus}>
+              {gameState.gameStatus.charAt(0).toUpperCase() + gameState.gameStatus.slice(1)}
+              <span className={`status-dot ${gameState.gameStatus}`}></span>
+            </span>
+          </p>
+          <button 
+            className="copy-room-id"
+            onClick={() => {
+              navigator.clipboard.writeText(roomId || '');
+            }}
+          >
+            Copy Room ID
+          </button>
+        </div>
+      </div>
       {gameState.gameStatus === 'finished' && (
         <GameEndDialog
           winner={gameState.players[playerKey].energy <= 0 ? opponentKey : playerKey}

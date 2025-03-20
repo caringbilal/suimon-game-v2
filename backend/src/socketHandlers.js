@@ -11,8 +11,21 @@ module.exports = (io) => {
         // Handle room creation
         socket.on('createRoom', async (playerData) => {
             try {
+                if (!playerData || !playerData.playerId || !playerData.playerName) {
+                    console.error('Invalid player data:', playerData);
+                    socket.emit('roomError', 'Invalid player data: Player ID and name are required');
+                    return;
+                }
+                
+                // Verify player exists in database
+                const player = await getPlayer(playerData.playerId);
+                if (!player) {
+                    console.error('Player not found in database:', playerData.playerId);
+                    socket.emit('roomError', 'Player not found. Please try logging in again');
+                    return;
+                }
                 const roomId = `room_${Date.now()}`;
-                const player = await getPlayer(playerData.playerId) || await createPlayer(playerData);
+                const existingOrNewPlayer = await getPlayer(playerData.playerId) || await createPlayer(playerData);
                 
                 activeRooms.set(roomId, {
                     player1: {
@@ -66,24 +79,53 @@ module.exports = (io) => {
                     }
                 });
 
-                // Initialize game state
-                const initialGameState = await createGame({
-                    player1Id: room.player1.id,
-                    player2Id: player.playerId,
-                    startTime: Date.now()
-                });
+                const { getInitialHand } = require('../data/monsters');
 
+                // Initialize game state with monster cards
+                const initialGameState = {
+                    players: {
+                        player: { id: room.player1.id, energy: 700, deck: [], hand: getInitialHand(4) },
+                        opponent: { id: room.player2.id, energy: 700, deck: [], hand: getInitialHand(4) }
+                    },
+                    battlefield: { player: [], opponent: [] },
+                    currentTurn: 'player',
+                    gameStatus: 'playing',
+                    playerMaxHealth: 700,
+                    opponentMaxHealth: 700,
+                    combatLog: [],
+                    killCount: { player: 0, opponent: 0 }
+                };
+                
                 room.gameState = initialGameState;
                 
-                // Start the game for both players
-                io.to(roomId).emit('gameStart', {
+                // Emit game start event to both players with their respective views
+                io.to(room.player1.socket).emit('gameStart', {
                     gameState: initialGameState,
+                    playerRole: 'player1',
                     players: {
                         player1: room.player1,
                         player2: room.player2
                     }
                 });
-            } catch (error) {
+                
+                io.to(room.player2.socket).emit('gameStart', {
+                    gameState: initialGameState,
+                    playerRole: 'player2',
+                    players: {
+                        player1: room.player1,
+                        player2: room.player2
+                    }
+                });
+                
+                // Save the initial game state
+                await saveGame({
+                    gameId: roomId,
+                    player1Id: room.player1.id,
+                    player2Id: room.player2.id,
+                    gameState: JSON.stringify(initialGameState),
+                    startTime: Date.now()
+                });}
+             catch (error) {
                 console.error('Error joining room:', error);
                 socket.emit('roomError', 'Failed to join room');
             }

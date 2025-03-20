@@ -249,7 +249,12 @@ io.on('connection', (socket) => {
         console.log(`Room ${roomId} created successfully`);
         console.log('Active Rooms:', Object.keys(gameStates));
 
-        socket.emit('roomCreated', roomId);
+        // Get player data to send with room creation response
+        const playerInfo = {
+          playerId: socket.playerId,
+          playerName: playerData && playerData.playerName ? playerData.playerName : 'Player 1'
+        };
+        socket.emit('roomCreated', { roomId, player: playerInfo });
 
       } catch (innerError) {
         console.error('Error during room creation:', innerError);
@@ -337,14 +342,48 @@ io.on('connection', (socket) => {
         });
       }
 
+      // Generate the same initial hands for both players using a seeded deck
+      const sharedDeck = [...monsterCards];
+      const seed = Date.now();
+      const seededRandom = (seed) => {
+        let x = Math.sin(seed++) * 10000;
+        return x - Math.floor(x);
+      };
+      
+      // Sort deck using seeded random for consistency
+      sharedDeck.sort((a, b) => seededRandom(seed) - 0.5);
+      
+      const initialHand1 = sharedDeck.slice(0, 4).map(card => ({
+        ...card,
+        hp: card.maxHp,
+        imageUrl: `/monsters/${card.id}.png`
+      }));
+      const initialHand2 = sharedDeck.slice(4, 8).map(card => ({
+        ...card,
+        hp: card.maxHp,
+        imageUrl: `/monsters/${card.id}.png`
+      }));
+      console.log('Generated initial hands with seed:', seed);
+      console.log('Initial hands:', { player1Cards: initialHand1.map(c => c.id), player2Cards: initialHand2.map(c => c.id) });
+      
+      // Ensure both players have visible cards in their hands
+      
       const updatedGameState = {
         ...room.gameState,
-        gameStatus: 'active',
+        gameStatus: 'playing', // Change from 'active' to 'playing' to match frontend expectations
         players: {
-          player: { energy: 700, hand: getInitialHand(), deck: [] },
-          opponent: { energy: 700, hand: getInitialHand(), deck: [] }
-        }
+          player: { id: 'player1', energy: 700, hand: initialHand1, deck: [] },
+          opponent: { id: 'player2', energy: 700, hand: initialHand2, deck: [] }
+        },
+        currentTurn: 'player',
+        playerMaxHealth: 700,
+        opponentMaxHealth: 700,
+        combatLog: [],
+        killCount: { player: 0, opponent: 0 },
+        battlefield: { player: [], opponent: [] }
       };
+      
+      // Store the original hands for both players to ensure they can see their own cards
 
       gameStates[roomId].gameState = updatedGameState;
       gameStates[roomId].player2Data = { playerName: player2.playerName };
@@ -361,12 +400,60 @@ io.on('connection', (socket) => {
           return;
       }
 
+      // Notify both players that player 2 has joined
       io.to(roomId).emit('joinSuccess', roomId);
-      io.to(roomId).emit('gameStateUpdate', updatedGameState);
+      
+      // Send the initial game state to each player with their respective perspectives
+      // For player 1: They see their own cards but opponent cards are hidden
+      const player1GameState = {
+        ...updatedGameState,
+        players: {
+          player: { ...updatedGameState.players.player },
+          opponent: { 
+            ...updatedGameState.players.opponent,
+            hand: Array(initialHand2.length).fill({ id: 'hidden', hp: 0, imageUrl: '/monsters/card-back.png' })
+          }
+        }
+      };
 
+      // For player 2: They see their own cards but opponent cards are hidden
+      // Note: We need to swap the player/opponent perspective for player 2
+      const player2GameState = {
+        ...updatedGameState,
+        players: {
+          player: { ...updatedGameState.players.opponent },
+          opponent: { 
+            ...updatedGameState.players.player,
+            hand: Array(initialHand1.length).fill({ id: 'hidden', hp: 0, imageUrl: '/monsters/card-back.png' })
+          }
+        },
+        // Swap the turn perspective for player 2
+        currentTurn: updatedGameState.currentTurn === 'player' ? 'opponent' : 'player'
+      };
+
+      io.to(room.player1).emit('gameStateUpdate', player1GameState);
+      io.to(socket.id).emit('gameStateUpdate', player2GameState);
+      console.log('Sent perspective-based game states to both players');
+
+      // Notify player1 that player2 has joined
+      io.to(room.player1).emit('playerJoined', {
+        player2: {
+          id: socket.playerId,
+          name: player2.playerName
+        }
+      });
+
+      // Start the game after a short delay
       setTimeout(() => {
+        // Notify both players that the game is starting
         io.to(roomId).emit('startGame', roomId);
         console.log(`Game started in room ${roomId} with players: ${room.player1}, ${room.player2}`);
+        
+        // Send the perspective-based game states to each player again
+        io.to(room.player1).emit('gameStateUpdate', player1GameState);
+        io.to(socket.id).emit('gameStateUpdate', player2GameState);
+        
+        console.log('Sent final perspective-based game states to both players');
       }, 1000);
 
     } catch (error) {
@@ -377,54 +464,97 @@ io.on('connection', (socket) => {
 
   socket.on('updateGameState', async (roomId, newGameState) => {
     try {
+      console.log(`\n=== Updating Game State for Room ${roomId} ===`);
+      console.log(`Player ${socket.id} is updating game state`);
+      
       if (!gameStates[roomId]) {
+        console.error(`Room ${roomId} not found in memory`);
         throw new Error('Room not found');
       }
 
+      // Store the updated game state
       gameStates[roomId].gameState = newGameState;
 
+      // Validate turn state
       if (newGameState.currentTurn === 'player' || newGameState.currentTurn === 'opponent') {
+        // Ensure game status is set to playing
         newGameState.gameStatus = 'playing';
 
+        // Validate that the player making the move is allowed to do so
         const isPlayer1 = socket.playerId === gameStates[roomId].player1;
         const isPlayer2 = socket.playerId === gameStates[roomId].player2;
         const isValidTurn = (isPlayer1 && newGameState.currentTurn === 'player') || (isPlayer2 && newGameState.currentTurn === 'opponent');
 
         if (!isValidTurn) {
+          console.error(`Invalid turn: Player ${socket.id} tried to play during ${newGameState.currentTurn}'s turn`);
           socket.emit('error', 'Not your turn');
           return;
         }
 
+        // Switch turns
+        const previousTurn = newGameState.currentTurn;
         newGameState.currentTurn = newGameState.currentTurn === 'player' ? 'opponent' : 'player';
+        console.log(`Turn switched from ${previousTurn} to ${newGameState.currentTurn}`);
+        
+        // Create perspective-based game states for each player
+        const player1GameState = {
+          ...newGameState,
+          players: {
+            player: { ...newGameState.players.player },
+            opponent: {
+              ...newGameState.players.opponent,
+              hand: Array(newGameState.players.opponent.hand.length).fill({ id: 'hidden', hp: 0, imageUrl: '/monsters/card-back.png' })
+            }
+          }
+        };
 
-        io.to(roomId).emit('gameStateUpdate', newGameState);
+        const player2GameState = {
+          ...newGameState,
+          players: {
+            player: { ...newGameState.players.opponent },
+            opponent: {
+              ...newGameState.players.player,
+              hand: Array(newGameState.players.player.hand.length).fill({ id: 'hidden', hp: 0, imageUrl: '/monsters/card-back.png' })
+            }
+          },
+          currentTurn: newGameState.currentTurn === 'player' ? 'opponent' : 'player'
+        };
+
+        // Send perspective-based game states to respective players
+        io.to(gameStates[roomId].player1).emit('gameStateUpdate', player1GameState);
+        io.to(gameStates[roomId].player2).emit('gameStateUpdate', player2GameState);
         console.log(`Game state updated for room ${roomId}, current turn: ${newGameState.currentTurn}`);
-        console.log(`Turn switched from ${socket.id} to ${newGameState.currentTurn === 'player' ? gameStates[roomId].player1 : gameStates[roomId].player2}`);
       } else {
         console.error(`Invalid turn state received: ${newGameState.currentTurn}`);
         socket.emit('error', 'Invalid game state update');
+        return;
       }
 
+      // Persist game state to database
       try {
         await db.updateGameState(roomId, JSON.stringify(newGameState));
+        console.log(`Game state persisted to database for room ${roomId}`);
       } catch (error) {
         console.error('Error updating game state in SQLite:', error);
       }
 
-      io.to(roomId).emit('gameStateUpdate', newGameState);
-      console.log(`Game state updated for room ${roomId}`);
-
+      // Check if game is finished
       if (newGameState.gameStatus === 'finished') {
+        console.log(`Game ${roomId} has finished`);
         const winner = newGameState.players.player.energy <= 0 ? 'opponent' : 'player';
         const winnerId = winner === 'player' ? gameStates[roomId].player1 : gameStates[roomId].player2;
-        const winnerPlayer = await db.getPlayer(winnerId);
-        newGameState.winner = { id: winnerId, name: winnerPlayer.playerName };
-
+        
         try {
+          const winnerPlayer = await db.getPlayer(winnerId);
+          newGameState.winner = { id: winnerId, name: winnerPlayer.playerName };
+          console.log(`Winner determined: ${winnerPlayer.playerName} (${winnerId})`);
+          
+          // Update database with game result
           await db.updateGameState(roomId, 'finished');
           await db.updateGameWinner(roomId, winnerId);
           console.log(`Game ${roomId} finished. Winner: ${winnerId}`);
 
+          // Send appropriate winner information to each player
           io.to(gameStates[roomId].player1).emit('gameStateUpdate', {
             ...newGameState,
             winner: winner === 'player' ? 'player' : 'opponent'

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
 import './App.css';
+import './styles/room-info.css';
 import GameBoard from '@components/GameBoard';
 import GameOver from './components/GameOver';
 import { GameState, CardType } from './types/game';
@@ -14,6 +15,7 @@ import OpponentProfile from './assets/ui/AIPlayer_Profile.jpg';
 import { useAuth } from './context/AuthContext';
 import LogoutButton from './components/LogoutButton';
 import LeaderboardTable from './components/LeaderboardTable';
+import RoomInfoBox from './components/RoomInfoBox';
 
 // Define the server URL for AWS deployment
 const SERVER_URL = process.env.REACT_APP_API_URL || 'http://localhost:3002'; // Local development server
@@ -211,10 +213,22 @@ function App() {
       });
 
       socket.on('roomCreated', (data: { roomId: string; player: any }) => {
-        console.log('Room created event received:', data);
-        setDialogMessage('Room created successfully. Waiting for opponent...');
+        console.log('=== ROOM CREATED SUCCESSFULLY ===');
+        console.log('Room ID:', data.roomId);
+        console.log('Host Player:', data.player.playerName);
+        console.log('Status: Waiting for opponent');
+        console.log('================================');
+        console.log('Share this Room ID with your opponent to start playing!');
+
+        setDialogMessage(`Room ${data.roomId} created successfully. Share this Room ID with your opponent to start playing!`);
         setRoomId(data.roomId);
         setPlayerRole('player1');
+        setPlayerNames(prev => ({ ...prev, player1: data.player.playerName }));
+
+        // Force a re-render of the RoomInfoBox component
+        setTimeout(() => {
+          setRoomId(prev => prev);
+        }, 100);
         // Initialize game state with waiting status
         setGameState({
           players: {
@@ -247,7 +261,33 @@ function App() {
 
       socket.on('playerJoined', (data: { player2: { id: string; name: string } }) => {
         console.log('Player joined event received:', data);
-        setDialogMessage(`${data.player2.name} has joined! Game starting...`);
+        if (data && data.player2 && data.player2.name) {
+          setDialogMessage(`${data.player2.name} has joined! Game starting...`);
+          setPlayerNames(prev => ({ ...prev, player2: data.player2.name }));
+        } else {
+          setDialogMessage('A player has joined! Game starting...');
+        }
+      });
+
+      socket.on('gameStart', (data: { gameState: GameState; playerRole: 'player1' | 'player2'; players: { player1: any; player2: any } }) => {
+        console.log('Game start event received:', data);
+        setDialogMessage('Game starting...');
+        
+        if (data.playerRole) {
+          setPlayerRole(data.playerRole);
+        }
+        
+        if (data.players) {
+          setPlayerNames({
+            player1: data.players.player1.name,
+            player2: data.players.player2.name
+          });
+        }
+        
+        if (data.gameState) {
+          console.log('Setting initial game state:', data.gameState);
+          setGameState(data.gameState);
+        }
       });
 
       socket.on('joinSuccess', (id: string) => {
@@ -257,52 +297,24 @@ function App() {
         setPlayerRole('player2');
       });
 
-      socket.on('startGame', async (id: string) => {
-        console.log('Start game event received:', id);
+      socket.on('gameStart', (data: { gameState: GameState; playerRole: 'player1' | 'player2'; players: { player1: any; player2: any } }) => {
+        console.log('Game start event received:', data);
         setDialogMessage('Game starting...');
-        setRoomId(id);
-        if (!playerRole) {
-          console.log('Setting player role to player2');
-          setPlayerRole('player2');
+        
+        if (data.playerRole) {
+          setPlayerRole(data.playerRole);
         }
-        try {
-          const gameData = await fetch(`${SERVER_URL}/api/games/${id}`).then(res => res.json());
-          const player1Data = gameData.player1Data ? JSON.parse(gameData.player1Data) : { playerName: 'Player 1' };
-          const player2Data = gameData.player2Data ? JSON.parse(gameData.player2Data) : { playerName: 'Player 2' };
-          const currentGameState = gameData.gameState ? JSON.parse(gameData.gameState) : null;
-
-          setPlayerNames({ 
-            player1: player1Data.playerName, 
-            player2: player2Data.playerName 
+        
+        if (data.players) {
+          setPlayerNames({
+            player1: data.players.player1.name,
+            player2: data.players.player2.name
           });
-
-          if (currentGameState) {
-            console.log('Using existing game state:', currentGameState);
-            setGameState(currentGameState);
-          } else {
-            const initialState: GameState = {
-              players: {
-                player: { id: 'player1', energy: MAX_ENERGY, deck: [], hand: getInitialHand() },
-                opponent: { id: 'player2', energy: MAX_ENERGY, deck: [], hand: getInitialHand() },
-              },
-              battlefield: { player: [], opponent: [] },
-              currentTurn: 'player',
-              gameStatus: 'playing',
-              playerMaxHealth: MAX_ENERGY,
-              opponentMaxHealth: MAX_ENERGY,
-              combatLog: [],
-              killCount: { player: 0, opponent: 0 },
-            };
-            console.log('Setting initial game state:', initialState);
-            setGameState(initialState);
-            if (playerRole === 'player1') {
-              console.log('Player1 emitting initial game state');
-              socket.emit('updateGameState', id, initialState);
-            }
-          }
-        } catch (error) {
-          console.error('Error initializing game state:', error);
-          setDialogMessage('Error initializing game. Please try again.');
+        }
+        
+        if (data.gameState) {
+          console.log('Setting initial game state:', data.gameState);
+          setGameState(data.gameState);
         }
       });
 
@@ -414,11 +426,14 @@ function App() {
 
   // Create a new game room
   const createRoom = () => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || !user?.sub || !user?.name) {
+      setDialogMessage('Please ensure you are properly logged in.');
+      return;
+    }
     // Emit the createRoom event with player data
     const playerData = {
-      playerId: user?.sub,
-      playerName: user?.name,
+      playerId: user.sub,
+      playerName: user.name,
     };
     socket.emit('createRoom', playerData);
   };
@@ -553,26 +568,16 @@ function App() {
         </div>
       </div>
       {roomId && (
-        <div className="room-info">
-          <p>Room ID: <span className="room-id">{roomId}</span></p>
-          <div className="room-details">
-            <p>Your Role: <span className="role">{playerRole === 'player1' ? 'Host (Player 1)' : playerRole === 'player2' ? 'Guest (Player 2)' : 'Not assigned yet'}</span></p>
-            <p>Game Status: <span className="status">{gameState ? gameState.gameStatus : 'Waiting for players'}</span></p>
-            <p>Current Turn: <span className="turn">{gameState ? (gameState.currentTurn === 'player' ? 'Player 1' : 'Player 2') : 'Game not started'}</span></p>
-            {playerRole === 'player1' && <p className="waiting-message">Waiting for Player 2 to join...</p>}
-            {playerRole === 'player2' && <p className="waiting-message">Connected as Player 2</p>}
-          </div>
-          <button
-            onClick={() => {
-              navigator.clipboard.writeText(roomId);
-              setDialogMessage('Room ID copied to clipboard!');
-              setTimeout(() => setDialogMessage(null), 2000);
-            }}
-            className="copy-room-btn"
-          >
-            Copy Room ID
-          </button>
-        </div>
+        <RoomInfoBox
+          roomId={roomId}
+          playerRole={playerRole}
+          gameState={gameState}
+          onCopyRoomId={() => {
+            navigator.clipboard.writeText(roomId);
+            setDialogMessage('Room ID copied to clipboard!');
+            setTimeout(() => setDialogMessage(null), 2000);
+          }}
+        />
       )}
       {dialogMessage && <div className="dialog-message">{dialogMessage}</div>}
     </div>
