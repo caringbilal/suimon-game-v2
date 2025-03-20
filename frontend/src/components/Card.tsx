@@ -38,7 +38,7 @@ const Card: React.FC<CardProps> = ({ card, onClick, isAttacking, isDefending, on
         </span>
       </div>
       <div className="card-image">
-        <img src={card.imageUrl} alt={card.name} />
+        <img src={require(`../assets/monsters/${card.name.toLowerCase()}.png`)} alt={card.name} />
       </div>
       <div className="card-stats">
         <div className="stat">

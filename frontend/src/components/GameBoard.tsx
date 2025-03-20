@@ -404,7 +404,7 @@ const PlayerStats = ({
       <div className="player-details">
         <h3>{playerInfo.name}</h3>
         <div className="energy-bar">
-          <div className="energy-fill" style={{ width: `${(energy / 700) * 100}%` }}></div>
+          <div className="energy-fill" style={{ width: `${(energy / 700) * 100}%`, backgroundColor: '#4CAF50' }}></div>
           <span className="energy-text">{energy} Energy</span>
         </div>
       </div>

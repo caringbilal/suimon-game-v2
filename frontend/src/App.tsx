@@ -3,9 +3,9 @@ import { GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
 import './App.css';
 import GameBoard from '@components/GameBoard';
-import GameOver from '@components/GameOver';
+import GameOver from './components/GameOver';
 import { GameState, CardType } from './types/game';
-import { getInitialHand } from '@data/monsters';
+import { getInitialHand } from './data/monsters';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { io, Socket } from 'socket.io-client';
@@ -108,6 +108,7 @@ function App() {
   const [dialogMessage, setDialogMessage] = useState<string | null>(null);
   const [players, setPlayers] = useState<Array<{ playerId: string; playerName: string; createdAt: number; updatedAt: number; }>>([]);
   const [games, setGames] = useState<Array<{ gameId: string; startTime: number; player1Id: string; player2Id: string; gameState: string; winner: string; }>>([]);
+  const [playerNames, setPlayerNames] = useState<{ player1: string; player2: string }>({ player1: '', player2: '' });
 
   // Player info constants
   const player1Info = {
@@ -209,24 +210,54 @@ function App() {
         console.log('Connected to server at', SERVER_URL);
       });
 
-      socket.on('roomCreated', (id: string) => {
-        console.log('Room created event received:', id);
+      socket.on('roomCreated', (data: { roomId: string; player: any }) => {
+        console.log('Room created event received:', data);
         setDialogMessage('Room created successfully. Waiting for opponent...');
-        setRoomId(id);
+        setRoomId(data.roomId);
         setPlayerRole('player1');
+        // Initialize game state with waiting status
+        setGameState({
+          players: {
+            player: { id: 'player1', energy: MAX_ENERGY, deck: [], hand: [] },
+            opponent: { id: 'player2', energy: MAX_ENERGY, deck: [], hand: [] }
+          },
+          battlefield: { player: [], opponent: [] },
+          currentTurn: 'player',
+          gameStatus: 'waiting',
+          playerMaxHealth: MAX_ENERGY,
+          opponentMaxHealth: MAX_ENERGY,
+          combatLog: [],
+          killCount: { player: 0, opponent: 0 }
+        });
+        // Initialize game state with waiting status
+        setGameState({
+          players: {
+            player: { id: 'player1', energy: MAX_ENERGY, deck: [], hand: [] },
+            opponent: { id: 'player2', energy: MAX_ENERGY, deck: [], hand: [] }
+          },
+          battlefield: { player: [], opponent: [] },
+          currentTurn: 'player',
+          gameStatus: 'waiting',
+          playerMaxHealth: MAX_ENERGY,
+          opponentMaxHealth: MAX_ENERGY,
+          combatLog: [],
+          killCount: { player: 0, opponent: 0 }
+        });
+      });
+
+      socket.on('playerJoined', (data: { player2: { id: string; name: string } }) => {
+        console.log('Player joined event received:', data);
+        setDialogMessage(`${data.player2.name} has joined! Game starting...`);
       });
 
       socket.on('joinSuccess', (id: string) => {
         console.log('Join success event received:', id);
         setDialogMessage('Successfully joined the room. Game will start soon...');
         setRoomId(id);
-        // Ensure Player 1 knows a player has joined
-        if (playerRole === 'player1') {
-          setDialogMessage('Player 2 has joined! Game starting...');
-        }
+        setPlayerRole('player2');
       });
 
-      socket.on('startGame', (id: string) => {
+      socket.on('startGame', async (id: string) => {
         console.log('Start game event received:', id);
         setDialogMessage('Game starting...');
         setRoomId(id);
@@ -234,31 +265,55 @@ function App() {
           console.log('Setting player role to player2');
           setPlayerRole('player2');
         }
-        const initialState: GameState = {
-          players: {
-            player: { id: 'player1', energy: MAX_ENERGY, deck: [], hand: getInitialHand() },
-            opponent: { id: 'player2', energy: MAX_ENERGY, deck: [], hand: getInitialHand() },
-          },
-          battlefield: { player: [], opponent: [] },
-          currentTurn: 'player',
-          gameStatus: 'playing',
-          playerMaxHealth: MAX_ENERGY,
-          opponentMaxHealth: MAX_ENERGY,
-          combatLog: [],
-          killCount: { player: 0, opponent: 0 },
-        };
-        console.log('Setting initial game state:', initialState);
-        setGameState(initialState);
-        if (playerRole === 'player1') {
-          console.log('Player1 emitting initial game state');
-          socket.emit('updateGameState', id, initialState);
+        try {
+          const gameData = await fetch(`${SERVER_URL}/api/games/${id}`).then(res => res.json());
+          const player1Data = gameData.player1Data ? JSON.parse(gameData.player1Data) : { playerName: 'Player 1' };
+          const player2Data = gameData.player2Data ? JSON.parse(gameData.player2Data) : { playerName: 'Player 2' };
+          const currentGameState = gameData.gameState ? JSON.parse(gameData.gameState) : null;
+
+          setPlayerNames({ 
+            player1: player1Data.playerName, 
+            player2: player2Data.playerName 
+          });
+
+          if (currentGameState) {
+            console.log('Using existing game state:', currentGameState);
+            setGameState(currentGameState);
+          } else {
+            const initialState: GameState = {
+              players: {
+                player: { id: 'player1', energy: MAX_ENERGY, deck: [], hand: getInitialHand() },
+                opponent: { id: 'player2', energy: MAX_ENERGY, deck: [], hand: getInitialHand() },
+              },
+              battlefield: { player: [], opponent: [] },
+              currentTurn: 'player',
+              gameStatus: 'playing',
+              playerMaxHealth: MAX_ENERGY,
+              opponentMaxHealth: MAX_ENERGY,
+              combatLog: [],
+              killCount: { player: 0, opponent: 0 },
+            };
+            console.log('Setting initial game state:', initialState);
+            setGameState(initialState);
+            if (playerRole === 'player1') {
+              console.log('Player1 emitting initial game state');
+              socket.emit('updateGameState', id, initialState);
+            }
+          }
+        } catch (error) {
+          console.error('Error initializing game state:', error);
+          setDialogMessage('Error initializing game. Please try again.');
         }
       });
 
       socket.on('gameStateUpdate', (newState: GameState) => {
         console.log('Game state update received:', newState);
         setGameState(newState);
-        setDialogMessage(null);
+        if (newState.gameStatus === 'finished' && newState.winner) {
+          setDialogMessage(`Game Over! ${newState.winner.name} wins!`);
+        } else {
+          setDialogMessage(null);
+        }
       });
 
       socket.on('error', (msg: string) => {
@@ -360,7 +415,12 @@ function App() {
   // Create a new game room
   const createRoom = () => {
     if (!isAuthenticated) return;
-    socket.emit('createRoom');
+    // Emit the createRoom event with player data
+    const playerData = {
+      playerId: user?.sub,
+      playerName: user?.name,
+    };
+    socket.emit('createRoom', playerData);
   };
 
   // Join an existing game room

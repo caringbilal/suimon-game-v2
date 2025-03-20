@@ -40,4 +40,5 @@ export interface GameState {
   opponentMaxHealth: number;
   combatLog: CombatLogEntry[]; // Added to store combat log entries
   killCount: { player: number; opponent: number }; // Added to store kill counts
+  winner?: { name: string }; // Added winner property
 }

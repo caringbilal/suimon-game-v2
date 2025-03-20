@@ -1,11 +1,12 @@
-const express = require('express');
-const http = require('http');
-const socketIo = require('socket.io');
-const db = require('./database/sqlite');
-const cors = require('cors');
+import express from 'express';
+import http from 'http';
+import { Server } from 'socket.io';
+import db from './database/sqlite.js';
+import cors from 'cors';
+import { monsterCards, getInitialHand } from './data/monsters.js';
 
 // Initialize SQLite database
-db.initializeDatabase().catch(console.error);
+await db.initializeDatabase();
 
 // Define Constants from Environment
 const PORT = process.env.PORT || 3002;
@@ -13,13 +14,12 @@ const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS || "https://d2m7rldqkz1v8b.c
 
 // Validate CORS
 const allowedOrigins = ALLOWED_ORIGINS.split(',').map(origin => origin.trim());
-if (ALLOWED_ORIGINS === "")
-{
+if (ALLOWED_ORIGINS === "") {
     console.log("no URLs passed as origins, CORS will fail and this needs to be fixed");
 }
 
 const corsOptions = {
-  origin: (origin, callback) => { // Dynamic origin check
+  origin: (origin, callback) => {
       if (!origin || allowedOrigins.includes(origin)) {
           callback(null, true);
       } else {
@@ -32,14 +32,14 @@ const corsOptions = {
 };
 
 const app = express();
-app.use(cors(corsOptions)); // Use the configured corsOptions
+app.use(cors(corsOptions));
 app.use(express.json());
 const server = http.createServer(app);
 
 // Initialize Socket.IO
-const io = socketIo(server, {
+const io = new Server(server, {
   cors: {
-    origin: allowedOrigins, // Allow multiple origins from env vars
+    origin: allowedOrigins,
     methods: ['GET', 'POST'],
     credentials: true
   },
@@ -56,7 +56,7 @@ const io = socketIo(server, {
 const gameStates = {};
 
 // Load active games from database on server start
-(async () => { // Using an immediately invoked async function expression
+(async () => {
     try {
         const games = await new Promise((resolve, reject) => {
             db.db.all('SELECT * FROM games WHERE gameState != "ended"', [], (err, rows) => {
@@ -76,7 +76,6 @@ const gameStates = {};
                 };
             } catch (error) {
                 console.error(`Error parsing game state for game ${game.gameId}:`, error);
-                // Consider marking this game as ended in the database to prevent further issues
                 db.updateGameState(game.gameId, 'ended').catch(console.error);
             }
         });
@@ -95,40 +94,32 @@ function generateUniqueRoomId() {
 io.on('connection', (socket) => {
   console.log('\n=== New Player Connection ===');
   console.log('Socket ID:', socket.id);
-  console.log('Query Parameters:', socket.handshake.query);  // Log query parameters
+  console.log('Query Parameters:', socket.handshake.query);
 
-  // Store player ID in socket if provided in handshake query
-  socket.playerId = socket.handshake.query.playerId; // Directly assign
+  socket.playerId = socket.handshake.query.playerId;
   if (socket.playerId) {
     console.log('Player ID:', socket.playerId);
   } else {
     console.log('No Player ID provided in handshake query.');
   }
 
-    // Handle Google authentication (From File 2)
   socket.on('googleAuth', async (googleData) => {
     try {
       const { googleId, displayName } = googleData;
-
-      // Check if user exists
       let player = await db.getPlayerByGoogleId(googleId);
 
       if (!player) {
-        // Create new player if doesn't exist
         player = await db.createPlayer({
           playerId: googleId,
           playerName: displayName
         });
         console.log(`New player registered: ${displayName} (${googleId})`);
       } else {
-        // Update existing player's last login
-        await db.logoutPlayer(googleId); // This actually updates the updatedAt timestamp
+        await db.logoutPlayer(googleId);
         console.log(`Existing player logged in: ${displayName} (${googleId})`);
       }
 
-      // Store the player ID in the socket for future reference
       socket.playerId = googleId;
-
       socket.emit('authSuccess', { player });
     } catch (error) {
       console.error('Authentication error:', error);
@@ -136,7 +127,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Handle logout (From File 2)
   socket.on('logout', async (playerId) => {
     try {
       await db.logoutPlayer(playerId);
@@ -148,7 +138,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Log active rooms and players
   const activeRooms = Object.entries(gameStates).map(([roomId, state]) => ({
     roomId,
     player1: state.player1,
@@ -157,27 +146,25 @@ io.on('connection', (socket) => {
   console.log('\nActive Rooms:', JSON.stringify(activeRooms, null, 2));
   console.log('=== Connection Setup Complete ===\n');
 
-  // Send initial connection success event
   socket.emit('connected', { id: socket.id });
 
-  // Handle player disconnection
   socket.on('disconnect', async (reason) => {
     console.log(`Player ${socket.id} disconnected. Reason: ${reason}`);
 
     for (const roomId in gameStates) {
-      if (gameStates.hasOwnProperty(roomId)) { // Safe check
+      if (gameStates.hasOwnProperty(roomId)) {
         const room = gameStates[roomId];
         if (room.player1 === socket.id || room.player2 === socket.id) {
           console.log(`Cleaning up room ${roomId} due to player ${socket.id} disconnection`);
           io.to(roomId).emit('playerDisconnected', { reason });
 
           try {
-            await db.updateGameState(roomId, 'ended'); // Mark game as ended
+            await db.updateGameState(roomId, 'ended');
           } catch (error) {
             console.error('Error updating game state on disconnect:', error);
           }
 
-          delete gameStates[roomId]; // Remove from memory
+          delete gameStates[roomId];
           console.log(`Room ${roomId} deleted.`);
           break;
         }
@@ -185,15 +172,17 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Create a new game room
   socket.on('createRoom', async (playerData) => {
     let roomId;
     try {
       console.log('\n=== Creating New Room ===');
-      console.log('Player Data:', JSON.stringify(playerData));
+      console.log('Player Data:', playerData);
 
+      // Validate playerData
       if (!playerData || typeof playerData !== 'object') {
-        throw new Error('Invalid player data');
+        console.error('Invalid player data received:', playerData);
+        socket.emit('error', 'Invalid player data');
+        return; // Exit early if data is invalid
       }
 
       roomId = generateUniqueRoomId();
@@ -204,38 +193,53 @@ io.on('connection', (socket) => {
         currentTurn: 'player',
         gameStatus: 'waiting',
         players: {
-          player: { energy: 700 },
-          opponent: { energy: 700 }
+          player: { energy: 700, hand: [], deck: [] },
+          opponent: { energy: 700, hand: [], deck: [] }
         },
-        lastUpdate: createdAt
+        lastUpdate: createdAt,
+        killCount: { player: 0, opponent: 0 },
+        battlefield: { player: [], opponent: [] },
+        combatLog: []
       };
+
+      let player = await db.getPlayer(socket.playerId);
+      if (!player) {
+        // If player doesn't exist in database, create them
+        try {
+          player = await db.createPlayer({
+            playerId: socket.playerId,
+            playerName: playerData.playerName
+          });
+          console.log('Created new player in database:', player);
+        } catch (error) {
+          console.error('Error creating player:', error);
+          socket.emit('error', 'Failed to create player');
+          return;
+        }
+      }
 
       const gameData = {
         gameId: roomId,
-        player1Id: socket.id,
+        player1Id: socket.playerId,
         player2Id: null,
-        player1Data: JSON.stringify(playerData), // Store playerData as JSON string
-        gameState: JSON.stringify(initialGameState),
-        startTime: createdAt //Added start time
+        player1Data: JSON.stringify({ ...playerData, playerName: player.playerName }),
+        gameState: JSON.stringify({ ...initialGameState, player1Name: player.playerName }),
+        startTime: createdAt
       };
 
       try {
-        // 1. Check if room already exists
         const existingGame = await db.getGame(roomId);
         if (existingGame) {
           throw new Error('Room ID collision detected');
         }
 
-        // 2. Store in database first
         await db.createGame(gameData);
         console.log('Game successfully stored in database');
 
-        // 3. Join socket room
         await socket.join(roomId);
 
-        // 4. Store in memory only after database success
         gameStates[roomId] = {
-          player1: socket.id,
+          player1: socket.playerId,
           player2: null,
           gameState: initialGameState,
           createdAt: createdAt,
@@ -245,18 +249,15 @@ io.on('connection', (socket) => {
         console.log(`Room ${roomId} created successfully`);
         console.log('Active Rooms:', Object.keys(gameStates));
 
-        // 5. Notify client only after all operations succeed
         socket.emit('roomCreated', roomId);
 
       } catch (innerError) {
-        // Cleanup on failure
         console.error('Error during room creation:', innerError);
         if (gameStates[roomId]) {
           delete gameStates[roomId];
         }
         try {
           await socket.leave(roomId);
-          // If database entry was created, mark it as ended
           const existingGame = await db.getGame(roomId);
           if (existingGame) {
             await db.updateGameState(roomId, 'ended');
@@ -264,8 +265,8 @@ io.on('connection', (socket) => {
         } catch (cleanupError) {
           console.error('Error during cleanup:', cleanupError);
         }
-        socket.emit('error', 'Failed to create room due to an error.'); // Inform client
-        return; // Important: Exit the function after emitting the error
+        socket.emit('error', 'Failed to create room due to an error.');
+        return;
       }
     } catch (error) {
       console.error('Error creating room:', error);
@@ -273,7 +274,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Join an existing game room
   socket.on('joinRoom', async (roomId) => {
     console.log('\n=== Player Joining Room ===');
     console.log(`Player ${socket.id} attempting to join room: ${roomId}`);
@@ -286,7 +286,6 @@ io.on('connection', (socket) => {
       let room = gameStates[roomId];
       let dbGame = null;
 
-      // Check both in-memory state and database for room existence
       try {
         dbGame = await db.getGame(roomId);
       } catch (dbError) {
@@ -294,17 +293,16 @@ io.on('connection', (socket) => {
         throw new Error('Failed to verify room status');
       }
 
-      // If room not in memory but exists in database and is not ended
       if (!room && dbGame && dbGame.gameState !== 'ended') {
         try {
             const gameState = JSON.parse(dbGame.gameState);
-            const player1Data = JSON.parse(dbGame.player1Data); // Parse player1Data from DB
+            const player1Data = JSON.parse(dbGame.player1Data);
             room = {
                 player1: dbGame.player1Id,
                 player2: dbGame.player2Id,
                 gameState: gameState,
                 createdAt: dbGame.startTime,
-                player1Data: player1Data // Use parsed player1Data
+                player1Data: player1Data
             };
             gameStates[roomId] = room;
             console.log(`Restored room ${roomId} from database`);
@@ -319,7 +317,7 @@ io.on('connection', (socket) => {
         throw new Error('Room does not exist');
       }
 
-      if (room.player1 === socket.id) {
+      if (room.player1 === socket.playerId) {
         throw new Error('Cannot join your own room');
       }
 
@@ -329,21 +327,32 @@ io.on('connection', (socket) => {
 
       console.log('Room available for joining, adding player2...');
       await socket.join(roomId);
-      room.player2 = socket.id;
+      room.player2 = socket.playerId;
+
+      let player2 = await db.getPlayer(socket.playerId);
+      if (!player2) {
+        player2 = await db.createPlayer({
+          playerId: socket.playerId,
+          playerName: socket.handshake.query.playerName || 'Player 2'
+        });
+      }
 
       const updatedGameState = {
         ...room.gameState,
-        gameStatus: 'active'
+        gameStatus: 'active',
+        players: {
+          player: { energy: 700, hand: getInitialHand(), deck: [] },
+          opponent: { energy: 700, hand: getInitialHand(), deck: [] }
+        }
       };
 
-      gameStates[roomId].gameState = updatedGameState; // Update in memory
-      console.log('Updated room state:', JSON.stringify(gameStates[roomId], null, 2));
+      gameStates[roomId].gameState = updatedGameState;
+      gameStates[roomId].player2Data = { playerName: player2.playerName };
 
-      // Update the database with player2Id and the updated game state
       try {
         await db.db.run(
-            'UPDATE games SET player2Id = ?, gameState = ? WHERE gameId = ?',
-            [socket.id, JSON.stringify(updatedGameState), roomId]
+            'UPDATE games SET player2Id = ?, player2Data = ?, gameState = ? WHERE gameId = ?',
+            [socket.playerId, JSON.stringify({ playerName: player2.playerName }), JSON.stringify(updatedGameState), roomId]
         );
         console.log(`Updated game state and player2 for room ${roomId} with player2 (${socket.id})`);
       } catch (dbUpdateError) {
@@ -352,11 +361,11 @@ io.on('connection', (socket) => {
           return;
       }
 
-      io.to(roomId).emit('joinSuccess', roomId); // Notify clients
-      io.to(roomId).emit('gameStateUpdate', updatedGameState); // Send the updated game state
+      io.to(roomId).emit('joinSuccess', roomId);
+      io.to(roomId).emit('gameStateUpdate', updatedGameState);
 
       setTimeout(() => {
-        io.to(roomId).emit('startGame', roomId); // Start game after a delay
+        io.to(roomId).emit('startGame', roomId);
         console.log(`Game started in room ${roomId} with players: ${room.player1}, ${room.player2}`);
       }, 1000);
 
@@ -366,23 +375,19 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Handle game state updates
   socket.on('updateGameState', async (roomId, newGameState) => {
     try {
       if (!gameStates[roomId]) {
         throw new Error('Room not found');
       }
 
-      gameStates[roomId].gameState = newGameState; // Update in-memory state
+      gameStates[roomId].gameState = newGameState;
 
-            // Validate and ensure proper turn switching (From File 2 - enhanced)
       if (newGameState.currentTurn === 'player' || newGameState.currentTurn === 'opponent') {
-        // Update game status to ensure it's playable
         newGameState.gameStatus = 'playing';
 
-        // Determine if the current socket is the active player
-        const isPlayer1 = socket.id === gameStates[roomId].player1;
-        const isPlayer2 = socket.id === gameStates[roomId].player2;
+        const isPlayer1 = socket.playerId === gameStates[roomId].player1;
+        const isPlayer2 = socket.playerId === gameStates[roomId].player2;
         const isValidTurn = (isPlayer1 && newGameState.currentTurn === 'player') || (isPlayer2 && newGameState.currentTurn === 'opponent');
 
         if (!isValidTurn) {
@@ -390,10 +395,8 @@ io.on('connection', (socket) => {
           return;
         }
 
-        // Switch turns after valid move
         newGameState.currentTurn = newGameState.currentTurn === 'player' ? 'opponent' : 'player';
 
-        // Broadcast updated state to all players
         io.to(roomId).emit('gameStateUpdate', newGameState);
         console.log(`Game state updated for room ${roomId}, current turn: ${newGameState.currentTurn}`);
         console.log(`Turn switched from ${socket.id} to ${newGameState.currentTurn === 'player' ? gameStates[roomId].player1 : gameStates[roomId].player2}`);
@@ -403,25 +406,25 @@ io.on('connection', (socket) => {
       }
 
       try {
-        await db.updateGameState(roomId, JSON.stringify(newGameState)); // Update database
+        await db.updateGameState(roomId, JSON.stringify(newGameState));
       } catch (error) {
         console.error('Error updating game state in SQLite:', error);
       }
 
-      io.to(roomId).emit('gameStateUpdate', newGameState); // Broadcast update
+      io.to(roomId).emit('gameStateUpdate', newGameState);
       console.log(`Game state updated for room ${roomId}`);
 
-            // Check for game end condition (From File 2 - enhanced)
       if (newGameState.gameStatus === 'finished') {
         const winner = newGameState.players.player.energy <= 0 ? 'opponent' : 'player';
         const winnerId = winner === 'player' ? gameStates[roomId].player1 : gameStates[roomId].player2;
+        const winnerPlayer = await db.getPlayer(winnerId);
+        newGameState.winner = { id: winnerId, name: winnerPlayer.playerName };
 
         try {
           await db.updateGameState(roomId, 'finished');
           await db.updateGameWinner(roomId, winnerId);
           console.log(`Game ${roomId} finished. Winner: ${winnerId}`);
 
-          // Send personalized game result to each player
           io.to(gameStates[roomId].player1).emit('gameStateUpdate', {
             ...newGameState,
             winner: winner === 'player' ? 'player' : 'opponent'
@@ -430,7 +433,7 @@ io.on('connection', (socket) => {
             ...newGameState,
             winner: winner === 'player' ? 'opponent' : 'player'
           });
-          return; // Skip the general broadcast
+          return;
         } catch (error) {
           console.error('Error updating game end state:', error);
         }
@@ -442,13 +445,11 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Handle socket errors
   socket.on('error', (error) => {
     console.error(`Socket ${socket.id} error:`, error);
     socket.emit('error', 'An unexpected error occurred. Please try again.');
   });
 
-  // Heartbeat mechanism
   const heartbeat = setInterval(() => {
     socket.emit('ping');
   }, 25000);
@@ -488,7 +489,6 @@ app.get('/games', async (req, res) => {
     }
 });
 
-// Player registration endpoint
 app.post('/players', async (req, res) => {
     try {
         const { playerId, playerName } = req.body;
@@ -505,7 +505,6 @@ app.post('/players', async (req, res) => {
             res.json(newPlayer);
         }
 
-        //Find and update sockets associated with this player id
         io.sockets.sockets.forEach(socket => {
             if (socket.playerId === playerId) {
                 socket.playerId = playerId;
@@ -518,12 +517,10 @@ app.post('/players', async (req, res) => {
     }
 });
 
-// Log server errors
 server.on('error', (error) => {
   console.error('Server error:', error);
 });
 
-// Start the server
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server is running on port ${PORT}`);
 });

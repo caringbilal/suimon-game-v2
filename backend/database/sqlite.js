@@ -1,8 +1,7 @@
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
-
+import sqlite3 from 'sqlite3';
+import path from 'path';
 // Create a new database instance, store it in a local file
-const dbPath = path.join(__dirname, 'suimon.sqlite');
+const dbPath = path.join(path.dirname(new URL(import.meta.url).pathname), 'suimon.sqlite');
 const db = new sqlite3.Database(dbPath);
 
 // Create tables if they don't exist
@@ -27,7 +26,10 @@ const initializeDatabase = () => {
         player2Id TEXT,
         gameState TEXT NOT NULL,
         winner TEXT,
+        winnerName TEXT,
         player1Data TEXT,
+        player2Data TEXT,
+        gameStatus TEXT DEFAULT 'waiting',
         FOREIGN KEY (player1Id) REFERENCES players(playerId),
         FOREIGN KEY (player2Id) REFERENCES players(playerId)
       )
@@ -91,16 +93,16 @@ const createPlayer = async (playerData) => {
 
 // Game operations
 const createGame = async (gameData) => {
-  const { gameId, player1Id, player2Id, gameState, player1Data } = gameData;
+  const { gameId, player1Id, player2Id, gameState, player1Data, player2Data } = gameData;
   const startTime = Date.now();
 
   return new Promise((resolve, reject) => {
     db.run(
-      'INSERT INTO games (gameId, startTime, player1Id, player2Id, gameState, player1Data) VALUES (?, ?, ?, ?, ?, ?)',
-      [gameId, startTime, player1Id, player2Id, gameState, JSON.stringify(player1Data)],
+      'INSERT INTO games (gameId, startTime, player1Id, player2Id, gameState, player1Data, player2Data) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [gameId, startTime, player1Id, player2Id, gameState, JSON.stringify(player1Data), player2Data ? JSON.stringify(player2Data) : null],
       (err) => {
         if (err) reject(err);
-        resolve({ gameId, startTime, player1Id, player2Id, gameState, player1Data });
+        resolve({ gameId, startTime, player1Id, player2Id, gameState, player1Data, player2Data });
       }
     );
   });
@@ -151,7 +153,7 @@ const getAllPlayers = async () => {
   });
 };
 
-module.exports = {
+export default {
   initializeDatabase,
   getPlayer,
   getPlayerByGoogleId,
