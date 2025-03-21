@@ -110,24 +110,6 @@
   transform: translate(-50%, -50%);
   width: 95%;
   height: 90vh;
-  background: rgba(0, 0, 0, 0.05);
-  border-radius: 30px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  box-shadow: 0 25px 45px rgba(0, 0, 0, 0.2);
-  z-index: 0;
-  overflow: hidden;
-}
-
-/* Remove the duplicate .background-rectangle and update the first one */
-.background-rectangle {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 95%;
-  height: 90vh;
   background: url('./assets/ui/bkg.png') center/cover no-repeat;
   border-radius: 30px;
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -137,16 +119,6 @@
   z-index: 0;
   overflow: hidden;
 }
-
-/* Remove or comment out the ::before pseudo-element since we're using the background directly */
-/* .background-rectangle::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: url('./assets/ui/bkg.png') center/cover no-repeat;
-  opacity: 0.15;
-  z-index: -1;
-} */
 
 .game-container {
   position: relative;
@@ -163,39 +135,41 @@
 
 .logout-button-game {
   position: absolute;
-  top: 20px;
-  right: 20px;
+  top: 10px;
+  right: 10px;
+  padding: 8px 16px;
   background-color: var(--danger-color);
   color: white;
   border: none;
-  padding: 10px 20px;
-  border-radius: 8px;
+  border-radius: 4px;
   cursor: pointer;
-  font-size: 14px;
-  transition: background-color 0.3s ease;
-  z-index: 1000;
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition: all 0.3s ease;
 }
 
 .logout-button-game:hover {
   background-color: var(--danger-light);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(255, 71, 87, 0.3);
 }
 
 .logout-button-lobby {
-  position: absolute;
-  top: 20px;
-  right: 20px;
+  padding: 8px 16px;
   background-color: var(--danger-color);
   color: white;
   border: none;
-  padding: 10px 20px;
-  border-radius: 8px;
+  border-radius: 4px;
   cursor: pointer;
-  font-size: 14px;
-  transition: background-color 0.3s ease;
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition: all 0.3s ease;
 }
 
 .logout-button-lobby:hover {
   background-color: var(--danger-light);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(255, 71, 87, 0.3);
 }
 
 .game-info-panel {
@@ -658,6 +632,7 @@ button[onClick*="Copy"]:hover {
     transform: translate(-50%, -50%);
   }
 }
+
 .player-profile {
   display: flex;
   align-items: center;

@@ -1,67 +1,51 @@
-const db = require('./sqlite');
+import db from './sqlite.js'; // Updated to ESM
 
-// Create a new game
-const createGame = async (gameData) => {
-  return await db.createGame(gameData);
-};
-
-// Get a game by ID
-const getGameById = async (gameId) => {
-  return await db.getGame(gameId);
-};
-
-// Update game state
-const updateGameState = async (gameId, gameState) => {
-  return await db.updateGameState(gameId, gameState);
-};
-
-// Get all games for a player
-const getPlayerGames = async (playerId) => {
-  return new Promise((resolve, reject) => {
-    db.db.all(
-      'SELECT * FROM games WHERE player1Id = ? OR player2Id = ? ORDER BY startTime DESC',
-      [playerId, playerId],
-      (err, rows) => {
-        if (err) reject(err);
-        resolve(rows);
-      }
-    );
-  });
-};
-
-// Update game winner
-const updateGameWinner = async (gameId, winnerId) => {
+export const createGame = async (gameData) => {
+  const { gameId, player1Id, player2Id, gameState, startTime } = gameData;
   return new Promise((resolve, reject) => {
     db.db.run(
-      'UPDATE games SET winner = ? WHERE gameId = ?',
-      [winnerId, gameId],
-      (err) => {
-        if (err) reject(err);
-        resolve({ gameId, winner: winnerId });
+      'INSERT INTO games (gameId, player1Id, player2Id, gameState, startTime) VALUES (?, ?, ?, ?, ?)',
+      [gameId, player1Id, player2Id, gameState, startTime],
+      function (err) {
+        if (err) {
+          reject(err);
+        } else {
+          resolve({ gameId, player1Id, player2Id, gameState, startTime });
+        }
       }
     );
   });
 };
 
-// Get recent games with limit
-const getRecentGames = async (limit = 10) => {
+export const getGame = async (gameId) => {
   return new Promise((resolve, reject) => {
-    db.db.all(
-      'SELECT * FROM games ORDER BY startTime DESC LIMIT ?',
-      [limit],
-      (err, rows) => {
-        if (err) reject(err);
-        resolve(rows);
+    db.db.get('SELECT * FROM games WHERE gameId = ?', [gameId], (err, row) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(row);
+      }
+    });
+  });
+};
+
+export const updateGame = async (gameId, gameState) => {
+  return new Promise((resolve, reject) => {
+    db.db.run(
+      'UPDATE games SET gameState = ? WHERE gameId = ?',
+      [JSON.stringify(gameState), gameId],
+      function (err) {
+        if (err) {
+          reject(err);
+        } else {
+          resolve();
+        }
       }
     );
   });
 };
 
-module.exports = {
-  createGame,
-  getGameById,
-  updateGameState,
-  getPlayerGames,
-  updateGameWinner,
-  getRecentGames
+export const saveGame = async (gameState) => {
+  // This can be a wrapper around updateGame or a no-op if updateGame is sufficient
+  return updateGame(gameState.gameId, gameState);
 };

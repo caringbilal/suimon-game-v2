@@ -1,20 +1,19 @@
 import React from 'react';
-import { useAuth } from '../context/AuthContext';
 
 interface LogoutButtonProps {
   className?: string;
+  onSignOut?: () => void;
 }
 
-const LogoutButton: React.FC<LogoutButtonProps> = ({ className }) => {
-  const { signOut, user } = useAuth();
-
-  if (!user) return null;
+const LogoutButton: React.FC<LogoutButtonProps> = ({ className, onSignOut }) => {
+  const handleClick = () => {
+    if (onSignOut) {
+      onSignOut();
+    }
+  };
 
   return (
-    <button
-      onClick={signOut}
-      className={`px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition-colors ${className || ''}`}
-    >
+    <button className={className} onClick={handleClick}>
       Logout
     </button>
   );

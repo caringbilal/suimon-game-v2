@@ -1,39 +1,147 @@
-import sqlite3 from 'sqlite3';
+import sqlite3 from 'sqlite3'; // Updated to ESM
 import path from 'path';
-// Create a new database instance, store it in a local file
-const dbPath = path.join(path.dirname(new URL(import.meta.url).pathname), 'suimon.sqlite');
-const db = new sqlite3.Database(dbPath);
+import { fileURLToPath } from 'url';
 
-// Create tables if they don't exist
-const initializeDatabase = () => {
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const dbPath = path.resolve(__dirname, 'suimon.sqlite');
+const db = new sqlite3.Database(dbPath, (err) => {
+  if (err) {
+    console.error('Error opening database:', err.message);
+  } else {
+    console.log('Connected to SQLite database');
+  }
+});
+
+const initializeDatabase = async () => {
+  try {
+    await new Promise((resolve, reject) => {
+      db.run('PRAGMA foreign_keys = ON', (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+
+    await new Promise((resolve, reject) => {
+      db.run(
+        `CREATE TABLE IF NOT EXISTS players (
+          playerId TEXT PRIMARY KEY,
+          playerName TEXT NOT NULL,
+          createdAt INTEGER NOT NULL,
+          updatedAt INTEGER NOT NULL
+        )`,
+        (err) => {
+          if (err) reject(err);
+          else resolve();
+        }
+      );
+    });
+
+    await new Promise((resolve, reject) => {
+      db.run(
+        `CREATE TABLE IF NOT EXISTS games (
+          gameId TEXT PRIMARY KEY,
+          player1Id TEXT NOT NULL,
+          player2Id TEXT NOT NULL,
+          gameState TEXT NOT NULL,
+          startTime INTEGER NOT NULL,
+          winner TEXT,
+          winnerName TEXT,
+          FOREIGN KEY (player1Id) REFERENCES players(playerId),
+          FOREIGN KEY (player2Id) REFERENCES players(playerId)
+        )`,
+        (err) => {
+          if (err) reject(err);
+          else resolve();
+        }
+      );
+    });
+
+    console.log('Database initialized successfully');
+  } catch (error) {
+    console.error('Error initializing database:', error);
+    throw error;
+  }
+};
+
+const getPlayerByGoogleId = async (googleId) => {
   return new Promise((resolve, reject) => {
-    // Players table
-    db.run(`
-      CREATE TABLE IF NOT EXISTS players (
-        playerId TEXT PRIMARY KEY,
-        playerName TEXT,
-        createdAt INTEGER,
-        updatedAt INTEGER
-      )
-    `);
+    db.get('SELECT * FROM players WHERE playerId = ?', [googleId], (err, row) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(row);
+      }
+    });
+  });
+};
 
-    // Games table
-    db.run(`
-      CREATE TABLE IF NOT EXISTS games (
-        gameId TEXT PRIMARY KEY,
-        startTime INTEGER,
-        player1Id TEXT,
-        player2Id TEXT,
-        gameState TEXT NOT NULL,
-        winner TEXT,
-        winnerName TEXT,
-        player1Data TEXT,
-        player2Data TEXT,
-        gameStatus TEXT DEFAULT 'waiting',
-        FOREIGN KEY (player1Id) REFERENCES players(playerId),
-        FOREIGN KEY (player2Id) REFERENCES players(playerId)
-      )
-    `, (err) => {
+const createPlayer = async (playerData) => {
+  const { playerId, playerName } = playerData;
+  return new Promise((resolve, reject) => {
+    db.run(
+      'INSERT INTO players (playerId, playerName, createdAt, updatedAt) VALUES (?, ?, ?, ?)',
+      [playerId, playerName, Date.now(), Date.now()],
+      function (err) {
+        if (err) {
+          reject(err);
+        } else {
+          resolve({ playerId, playerName, createdAt: Date.now(), updatedAt: Date.now() });
+        }
+      }
+    );
+  });
+};
+
+const getPlayer = async (playerId) => {
+  return new Promise((resolve, reject) => {
+    db.get('SELECT * FROM players WHERE playerId = ?', [playerId], (err, row) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(row);
+      }
+    });
+  });
+};
+
+const getAllPlayers = async () => {
+  return new Promise((resolve, reject) => {
+    db.all('SELECT * FROM players', [], (err, rows) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(rows);
+      }
+    });
+  });
+};
+
+const getAllGames = async () => {
+  return new Promise((resolve, reject) => {
+    db.all('SELECT * FROM games', [], (err, rows) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(rows);
+      }
+    });
+  });
+};
+
+const updateGameState = async (gameId, gameState) => {
+  let query, params;
+  if (typeof gameState === 'string') {
+    query = 'UPDATE games SET gameState = ? WHERE gameId = ?';
+    params = [gameState, gameId];
+  } else {
+    query = 'UPDATE games SET gameState = ? WHERE gameId = ?';
+    params = [JSON.stringify(gameState), gameId];
+  }
+
+  return new Promise((resolve, reject) => {
+    db.run(query, params, function (err) {
       if (err) {
         reject(err);
       } else {
@@ -43,22 +151,19 @@ const initializeDatabase = () => {
   });
 };
 
-// Player operations
-const getPlayer = async (playerId) => {
+const updateGameWinner = async (gameId, winnerId, winnerName) => {
   return new Promise((resolve, reject) => {
-    db.get('SELECT * FROM players WHERE playerId = ?', [playerId], (err, row) => {
-      if (err) reject(err);
-      resolve(row);
-    });
-  });
-};
-
-const getPlayerByGoogleId = async (googleId) => {
-  return new Promise((resolve, reject) => {
-    db.get('SELECT * FROM players WHERE playerId = ?', [googleId], (err, row) => {
-      if (err) reject(err);
-      resolve(row);
-    });
+    db.run(
+      'UPDATE games SET winner = ?, winnerName = ? WHERE gameId = ?',
+      [winnerId, winnerName, gameId],
+      function (err) {
+        if (err) {
+          reject(err);
+        } else {
+          resolve();
+        }
+      }
+    );
   });
 };
 
@@ -67,102 +172,26 @@ const logoutPlayer = async (playerId) => {
     db.run(
       'UPDATE players SET updatedAt = ? WHERE playerId = ?',
       [Date.now(), playerId],
-      (err) => {
-        if (err) reject(err);
-        resolve({ success: true });
+      function (err) {
+        if (err) {
+          reject(err);
+        } else {
+          resolve();
+        }
       }
     );
-  });
-};
-
-const createPlayer = async (playerData) => {
-  const { playerId, playerName } = playerData;
-  const now = Date.now();
-  
-  return new Promise((resolve, reject) => {
-    db.run(
-      'INSERT INTO players (playerId, playerName, createdAt, updatedAt) VALUES (?, ?, ?, ?)',
-      [playerId, playerName, now, now],
-      (err) => {
-        if (err) reject(err);
-        resolve({ playerId, playerName, createdAt: now, updatedAt: now });
-      }
-    );
-  });
-};
-
-// Game operations
-const createGame = async (gameData) => {
-  const { gameId, player1Id, player2Id, gameState, player1Data, player2Data } = gameData;
-  const startTime = Date.now();
-
-  return new Promise((resolve, reject) => {
-    db.run(
-      'INSERT INTO games (gameId, startTime, player1Id, player2Id, gameState, player1Data, player2Data) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [gameId, startTime, player1Id, player2Id, gameState, JSON.stringify(player1Data), player2Data ? JSON.stringify(player2Data) : null],
-      (err) => {
-        if (err) reject(err);
-        resolve({ gameId, startTime, player1Id, player2Id, gameState, player1Data, player2Data });
-      }
-    );
-  });
-};
-
-const getGame = async (gameId) => {
-  return new Promise((resolve, reject) => {
-    db.get('SELECT * FROM games WHERE gameId = ?', [gameId], (err, row) => {
-      if (err) reject(err);
-      resolve(row);
-    });
-  });
-};
-
-const updateGameState = async (gameId, gameState) => {
-  return new Promise((resolve, reject) => {
-    db.run(
-      'UPDATE games SET gameState = ? WHERE gameId = ?',
-      [gameState, gameId],
-      (err) => {
-        if (err) reject(err);
-        resolve({ gameId, gameState });
-      }
-    );
-  });
-};
-
-const updateGameWinner = async (gameId, winner) => {
-  return new Promise((resolve, reject) => {
-    db.run(
-      'UPDATE games SET winner = ? WHERE gameId = ?',
-      [winner, gameId],
-      (err) => {
-        if (err) reject(err);
-        resolve({ gameId, winner });
-      }
-    );
-  });
-};
-
-// Get all players
-const getAllPlayers = async () => {
-  return new Promise((resolve, reject) => {
-    db.all('SELECT * FROM players', [], (err, rows) => {
-      if (err) reject(err);
-      resolve(rows);
-    });
   });
 };
 
 export default {
+  db,
   initializeDatabase,
-  getPlayer,
   getPlayerByGoogleId,
   createPlayer,
-  logoutPlayer,
-  createGame,
-  getGame,
+  getPlayer,
+  getAllPlayers,
+  getAllGames,
   updateGameState,
   updateGameWinner,
-  getAllPlayers,
-  db
+  logoutPlayer
 };

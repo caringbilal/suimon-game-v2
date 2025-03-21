@@ -6,7 +6,6 @@ import './styles/room-info.css';
 import GameBoard from '@components/GameBoard';
 import GameOver from './components/GameOver';
 import { GameState, CardType } from './types/game';
-import { getInitialHand } from './data/monsters';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { io, Socket } from 'socket.io-client';
@@ -18,7 +17,7 @@ import LeaderboardTable from './components/LeaderboardTable';
 import RoomInfoBox from './components/RoomInfoBox';
 
 // Define the server URL for AWS deployment
-const SERVER_URL = process.env.REACT_APP_API_URL || 'http://localhost:3002'; // Local development server
+const SERVER_URL = process.env.REACT_APP_API_URL || 'http://localhost:3002';
 const socket: Socket = io(SERVER_URL, {
   transports: ['websocket', 'polling'],
   reconnection: true,
@@ -33,7 +32,7 @@ const socket: Socket = io(SERVER_URL, {
 // Login component
 const LoginScreen: React.FC = () => {
   const { isLoading, error } = useAuth();
-  
+
   const handleGoogleSuccess = async (credentialResponse: any) => {
     try {
       const decoded: any = jwtDecode(credentialResponse.credential);
@@ -43,7 +42,7 @@ const LoginScreen: React.FC = () => {
         picture: decoded.picture,
         sub: decoded.sub,
       };
-      
+
       // Create or update player in the database
       try {
         const response = await fetch(`${SERVER_URL}/players`, {
@@ -62,7 +61,7 @@ const LoginScreen: React.FC = () => {
       } catch (error) {
         console.error('Error registering player:', error);
       }
-      
+
       localStorage.setItem('google_credential', credentialResponse.credential);
       window.location.reload();
     } catch (error) {
@@ -75,7 +74,7 @@ const LoginScreen: React.FC = () => {
       <div className="login-card">
         <h1>Suimon Card Game</h1>
         <p>Sign in to play and track your progress</p>
-        
+
         <div className="google-login-wrapper">
           <GoogleLogin
             onSuccess={handleGoogleSuccess}
@@ -87,7 +86,7 @@ const LoginScreen: React.FC = () => {
             useOneTap
           />
         </div>
-        
+
         {error && <p className="error-message">{error}</p>}
       </div>
     </div>
@@ -100,7 +99,7 @@ function App() {
   const MAX_ENERGY = 700;
 
   // Auth state
-  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading, signOut } = useAuth();
 
   // State variables
   const [gameState, setGameState] = useState<GameState | null>(null);
@@ -110,7 +109,6 @@ function App() {
   const [dialogMessage, setDialogMessage] = useState<string | null>(null);
   const [players, setPlayers] = useState<Array<{ playerId: string; playerName: string; createdAt: number; updatedAt: number; }>>([]);
   const [games, setGames] = useState<Array<{ gameId: string; startTime: number; player1Id: string; player2Id: string; gameState: string; winner: string; }>>([]);
-  const [playerNames, setPlayerNames] = useState<{ player1: string; player2: string }>({ player1: '', player2: '' });
 
   // Player info constants
   const player1Info = {
@@ -126,7 +124,7 @@ function App() {
   // Determine current player and opponent info based on role
   const currentPlayerInfo = playerRole === 'player1' ? player1Info : player2Info;
   const currentOpponentInfo = playerRole === 'player1' ? player2Info : player1Info;
-  
+
   // Memoized function to add combat log entries
   const addCombatLogEntry = useCallback((message: string, type: string = 'info') => {
     setGameState((prev) => {
@@ -168,12 +166,10 @@ function App() {
       }
     };
 
-
     if (isAuthenticated && user) {
       fetchData();
     }
   }, [isAuthenticated, user]);
-
 
   // Initialize socket connection
   const initializeSocket = useCallback(() => {
@@ -181,22 +177,22 @@ function App() {
     if (socket.connected) {
       socket.disconnect();
     }
-    
+
     // Set query parameters to include player ID if authenticated
     if (user && user.sub) {
       socket.io.opts.query = { playerId: user.sub };
     }
-    
+
     socket.connect();
     socket.io.on("reconnect_attempt", () => {
       setDialogMessage("Attempting to reconnect...");
     });
-    
+
     socket.io.on("reconnect", () => {
       setDialogMessage("Reconnected to server!");
       setTimeout(() => setDialogMessage(null), 3000);
     });
-    
+
     socket.io.on("reconnect_failed", () => {
       setDialogMessage("Failed to reconnect. Please refresh the page.");
     });
@@ -223,56 +219,19 @@ function App() {
         setDialogMessage(`Room ${data.roomId} created successfully. Share this Room ID with your opponent to start playing!`);
         setRoomId(data.roomId);
         setPlayerRole('player1');
-        setPlayerNames(prev => ({ ...prev, player1: data.player.playerName }));
 
         // Force a re-render of the RoomInfoBox component
         setTimeout(() => {
           setRoomId(prev => prev);
         }, 100);
-        // Initialize game state with waiting status and initial hand
-        setGameState({
-          players: {
-            player: { id: 'player1', energy: MAX_ENERGY, deck: [], hand: getInitialHand(4) },
-            opponent: { id: 'player2', energy: MAX_ENERGY, deck: [], hand: [] }
-          },
-          battlefield: { player: [], opponent: [] },
-          currentTurn: 'player',
-          gameStatus: 'waiting',
-          playerMaxHealth: MAX_ENERGY,
-          opponentMaxHealth: MAX_ENERGY,
-          combatLog: [],
-          killCount: { player: 0, opponent: 0 }
-        });
       });
 
       socket.on('playerJoined', (data: { player2: { id: string; name: string } }) => {
         console.log('Player joined event received:', data);
         if (data && data.player2 && data.player2.name) {
           setDialogMessage(`${data.player2.name} has joined! Game starting...`);
-          setPlayerNames(prev => ({ ...prev, player2: data.player2.name }));
         } else {
           setDialogMessage('A player has joined! Game starting...');
-        }
-      });
-
-      socket.on('gameStart', (data: { gameState: GameState; playerRole: 'player1' | 'player2'; players: { player1: any; player2: any } }) => {
-        console.log('Game start event received:', data);
-        setDialogMessage('Game starting...');
-        
-        if (data.playerRole) {
-          setPlayerRole(data.playerRole);
-        }
-        
-        if (data.players) {
-          setPlayerNames({
-            player1: data.players.player1.name,
-            player2: data.players.player2.name
-          });
-        }
-        
-        if (data.gameState) {
-          console.log('Setting initial game state:', data.gameState);
-          setGameState(data.gameState);
         }
       });
 
@@ -281,40 +240,35 @@ function App() {
         setDialogMessage('Successfully joined the room. Game will start soon...');
         setRoomId(id);
         setPlayerRole('player2');
-        
-        // Initialize game state for player 2 with initial hand
-        setGameState({
-          players: {
-            player: { id: 'player1', energy: MAX_ENERGY, deck: [], hand: [] },
-            opponent: { id: 'player2', energy: MAX_ENERGY, deck: [], hand: getInitialHand(4) }
-          },
-          battlefield: { player: [], opponent: [] },
-          currentTurn: 'player',
-          gameStatus: 'waiting',
-          playerMaxHealth: MAX_ENERGY,
-          opponentMaxHealth: MAX_ENERGY,
-          combatLog: [],
-          killCount: { player: 0, opponent: 0 }
-        });
       });
 
-      socket.on('gameStateUpdate', (newState: GameState) => {
-        console.log('Game state update received:', newState);
-        setGameState(newState);
-        if (newState.gameStatus === 'finished' && newState.winner) {
-          setDialogMessage(`Game Over! ${newState.winner.name} wins!`);
-        } else {
-          setDialogMessage(null);
+      socket.on('gameStateUpdated', (data: { gameState: GameState; playerRole?: 'player1' | 'player2'; players?: { player1: any; player2: any } }) => {
+        console.log('Game state updated received:', data);
+        if (data.playerRole) {
+          setPlayerRole(data.playerRole);
         }
-      });
-      
-      socket.on('gameStateUpdated', (newState: GameState) => {
-        console.log('Game state updated received:', newState);
-        setGameState(newState);
-        if (newState.gameStatus === 'finished' && newState.winner) {
-          setDialogMessage(`Game Over! ${newState.winner.name} wins!`);
-        } else {
-          setDialogMessage(null);
+        if (data.gameState) {
+          setGameState(data.gameState);
+          if (data.gameState.gameStatus === 'finished') {
+            const winner = data.gameState.players.player.energy <= 0 ? 'opponent' : 'player';
+            const winnerName = data.gameState.winner?.name || (winner === 'player' ? currentPlayerInfo.name : currentOpponentInfo.name);
+            setDialogMessage(`Game Over! ${winnerName} wins!`);
+            // Emit gameEnded event to the server
+            if (roomId && user) {
+              socket.emit('gameEnded', {
+                roomId,
+                player1Id: playerRole === 'player1' ? user.sub : '',
+                player2Id: playerRole === 'player2' ? user.sub : '',
+                player1Wins: winner === 'player' && playerRole === 'player1' ? 1 : 0,
+                player1Losses: winner === 'opponent' && playerRole === 'player1' ? 1 : 0,
+                player2Wins: winner === 'player' && playerRole === 'player2' ? 1 : 0,
+                player2Losses: winner === 'opponent' && playerRole === 'player2' ? 1 : 0,
+                gameState: data.gameState
+              });
+            }
+          } else {
+            setDialogMessage(null);
+          }
         }
       });
 
@@ -350,15 +304,14 @@ function App() {
         socket.off('connect');
         socket.off('roomCreated');
         socket.off('joinSuccess');
-        socket.off('startGame');
-        socket.off('gameStateUpdate');
+        socket.off('gameStateUpdated');
         socket.off('error');
         socket.off('playerDisconnected');
         socket.off('connect_error');
         socket.offAny();
       };
     }
-  }, [playerRole, initializeSocket, isAuthenticated]);
+  }, [initializeSocket, isAuthenticated]);
 
   // Handle player card play
   const handleCardPlay = (card: CardType) => {
@@ -370,28 +323,7 @@ function App() {
         : gameState.currentTurn === 'opponent';
     if (!isPlayerTurn) return;
 
-    const playerKey = playerRole === 'player1' ? 'player' : 'opponent';
-    const opponentKey = playerKey === 'player' ? 'opponent' : 'player';
-    const updatedHand = gameState.players[playerKey].hand.filter((c) => c.id !== card.id);
-    const updatedBattlefield = { ...gameState.battlefield, [playerKey]: [card] };
-    const totalCards = updatedHand.length + updatedBattlefield[playerKey].length;
-    const cardsToDraw = Math.max(0, 4 - totalCards);
-    const newCards = getInitialHand(cardsToDraw).map(card => ({ ...card, hp: card.maxHp }));
-    const finalHand = [...updatedHand, ...newCards];
-
-    const newState: GameState = {
-      ...gameState,
-      players: {
-        ...gameState.players,
-        [playerKey]: { ...gameState.players[playerKey], hand: finalHand },
-      },
-      battlefield: updatedBattlefield,
-      currentTurn: opponentKey,
-      gameStatus: 'playing',
-    };
-
-    setGameState(newState);
-    socket.emit('updateGame', { roomId, gameState: newState, playerRole });
+    socket.emit('cardPlayed', { roomId, card, playerRole });
   };
 
   // Handle card defeated event
@@ -420,7 +352,6 @@ function App() {
       setDialogMessage('Please ensure you are properly logged in.');
       return;
     }
-    // Emit the createRoom event with player data
     const playerData = {
       playerId: user.sub,
       playerName: user.name,
@@ -431,7 +362,7 @@ function App() {
   // Join an existing game room
   const joinRoom = () => {
     if (!isAuthenticated || !joinRoomInput) return;
-    socket.emit('joinRoom', joinRoomInput);
+    socket.emit('joinRoom', { roomId: joinRoomInput, playerData: { playerId: user?.sub, playerName: user?.name } });
   };
 
   // If auth is still loading, show a loading indicator
@@ -448,43 +379,18 @@ function App() {
   if (gameState && gameState.gameStatus === 'finished') {
     const playerEnergy = gameState.players.player.energy;
     const opponentEnergy = gameState.players.opponent.energy;
-    // Determine winner based on who has zero energy
     const winner = playerEnergy <= 0 ? 'opponent' : 'player';
 
-    // Update game result in the database
-    if (user && roomId) {
-      const gameData = {
-        gameId: roomId,
-        startTime: Date.now(),
-        player1Id: playerRole === 'player1' ? user.sub : '',
-        player2Id: playerRole === 'player2' ? user.sub : '',
-        gameState: 'finished',
-        winner: winner === 'player' ? (playerRole === 'player1' ? user.sub : '') : (playerRole === 'player2' ? user.sub : '')
-      };
-
-      // Send game result to backend
-      fetch(`${SERVER_URL}/games`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(gameData)
-      })
+    // Refresh leaderboard data
+    fetch(`${SERVER_URL}/games`)
       .then(response => response.json())
-      .then(() => {
-        // Refresh leaderboard data
-        fetch(`${SERVER_URL}/games`)
-          .then(response => response.json())
-          .then(data => setGames(data))
-          .catch(error => console.error('Error fetching games:', error));
+      .then(data => setGames(data))
+      .catch(error => console.error('Error fetching games:', error));
 
-        fetch(`${SERVER_URL}/players`)
-          .then(response => response.json())
-          .then(data => setPlayers(data))
-          .catch(error => console.error('Error fetching players:', error));
-      })
-      .catch(error => console.error('Error updating game result:', error));
-    }
+    fetch(`${SERVER_URL}/players`)
+      .then(response => response.json())
+      .then(data => setPlayers(data))
+      .catch(error => console.error('Error fetching players:', error));
 
     return (
       <GameOver
@@ -508,7 +414,10 @@ function App() {
     return (
       <DndProvider backend={HTML5Backend}>
         <div className="game-container">
-          <LogoutButton className="logout-button-game" />
+          <LogoutButton className="logout-button-game" onSignOut={() => {
+            socket.emit('logout', user?.sub);
+            signOut();
+          }} />
           <GameBoard
             gameState={gameState}
             onCardPlay={handleCardPlay}
@@ -534,11 +443,14 @@ function App() {
       <div className="user-profile">
         <img src={user?.picture || PlayerProfile} alt="Profile" className="profile-image" />
         <h2>Welcome, {user?.name || 'Player'}!</h2>
-        <LogoutButton className="logout-button-lobby" />
+        <LogoutButton className="logout-button-lobby" onSignOut={() => {
+          socket.emit('logout', user?.sub);
+          signOut();
+        }} />
       </div>
-      
+
       <h1>Suimon Card Game</h1>
-      
+
       <LeaderboardTable players={players} games={games} />
       <div className="room-controls">
         <button onClick={createRoom} className="create-room-btn">

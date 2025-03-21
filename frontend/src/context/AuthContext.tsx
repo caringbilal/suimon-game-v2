@@ -43,16 +43,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (storedCredential) {
       try {
         const decoded: any = jwtDecode(storedCredential);
-        const userData: User = {
-          email: decoded.email,
-          name: decoded.name,
-          picture: decoded.picture,
-          sub: decoded.sub,
-        };
-        setUser(userData);
+        const currentTime = Math.floor(Date.now() / 1000);
+        if (decoded.exp && decoded.exp < currentTime) {
+          // Token has expired
+          setError('Your session has expired. Please sign in again.');
+          localStorage.removeItem('google_credential');
+          setUser(null);
+        } else {
+          const userData: User = {
+            email: decoded.email,
+            name: decoded.name,
+            picture: decoded.picture,
+            sub: decoded.sub,
+          };
+          setUser(userData);
+        }
       } catch (error) {
         console.error('Error processing stored credential:', error);
+        setError('Failed to process stored credentials. Please sign in again.');
         localStorage.removeItem('google_credential');
+        setUser(null);
       }
     }
     setIsLoading(false);

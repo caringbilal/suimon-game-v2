@@ -3,8 +3,7 @@ import { GameState, CardType } from '../types/game';
 import Card from './Card';
 import cardBack from '../assets/ui/card-back.png';
 import cardBackMonster from '../assets/monsters/card-back.png';
-// Use both card back images to ensure they're properly loaded
-import '../assets/monsters/card-back.png'; // Also import from monsters folder for backend reference
+import '../assets/monsters/card-back.png';
 import '../styles/combat.css';
 import '../styles/player.css';
 import '../styles/game-stats.css';
@@ -49,19 +48,37 @@ export default React.memo<GameBoardProps>(({
 }) => {
   const [attackingCard, setAttackingCard] = useState<string | null>(null);
   const [defendingCard, setDefendingCard] = useState<string | null>(null);
+  const [error, setError] = useState<string>('');
 
+  // Determine player and opponent keys based on playerRole
   const playerKey = playerRole === 'player1' ? 'player' : 'opponent';
   const opponentKey = playerRole === 'player1' ? 'opponent' : 'player';
 
   // Sync game state with server
   useEffect(() => {
     socket.on('gameStateUpdated', (newState: GameState) => {
+      console.log('Received gameStateUpdated:', newState);
       setGameState(newState);
+      setError('');
     });
+
+    socket.on('error', (message: string) => {
+      console.error('Socket error:', message);
+      setError(message);
+    });
+
     return () => {
       socket.off('gameStateUpdated');
+      socket.off('error');
     };
   }, [socket, setGameState]);
+
+  // Debug: Log game state changes to diagnose card loading issues
+  useEffect(() => {
+    console.log('Current gameState:', gameState);
+    console.log('Player hand:', gameState.players[playerKey].hand);
+    console.log('Opponent hand:', gameState.players[opponentKey].hand);
+  }, [gameState, playerKey, opponentKey]);
 
   // Handle combat (only for Player 1)
   const handleCombat = useCallback(() => {
@@ -118,7 +135,7 @@ export default React.memo<GameBoardProps>(({
     if (opponentCard.hp <= 0) {
       updatedKillCount = {
         ...updatedKillCount,
-        player: updatedKillCount.player + 1
+        player: updatedKillCount.player + 1,
       };
       nextTurn = 'opponent';
       newCombatLog.push({
@@ -130,7 +147,7 @@ export default React.memo<GameBoardProps>(({
     } else if (playerCard.hp <= 0) {
       updatedKillCount = {
         ...updatedKillCount,
-        opponent: updatedKillCount.opponent + 1
+        opponent: updatedKillCount.opponent + 1,
       };
       nextTurn = 'player';
       newCombatLog.push({
@@ -194,21 +211,17 @@ export default React.memo<GameBoardProps>(({
   }, [gameState.battlefield, playerKey, opponentKey]);
 
   // Card drop handling
-  const [{ isOver }, dropRef] = useDrop<CardType, void, { isOver: boolean }>({    accept: 'CARD',
+  const [{ isOver }, dropRef] = useDrop<CardType, void, { isOver: boolean }>({
+    accept: 'CARD',
     drop: (item) => {
       const isPlayerTurn = playerRole === 'player1' ? 
         (gameState.currentTurn === 'player' && gameState.gameStatus === 'playing') : 
         (gameState.currentTurn === 'opponent' && gameState.gameStatus === 'playing');
       if (isPlayerTurn) {
         onCardPlay(item);
-        // Update game state with new turn
-        const newState: GameState = {
-          ...gameState,
-          currentTurn: playerRole === 'player1' ? 'opponent' : 'player'
-        };
-        setGameState(newState);
+        // Let the server manage the turn change
         if (roomId) {
-          socket.emit('updateGame', { roomId, gameState: newState, playerRole });
+          socket.emit('cardPlayed', { roomId, card: item, playerRole });
         }
       }
       return undefined;
@@ -238,6 +251,11 @@ export default React.memo<GameBoardProps>(({
       socket.emit('updateGame', { roomId, gameState: newState, playerRole });
     }
   }, [gameState.players.player.hand, gameState.players.opponent.hand, roomId, socket, setGameState]);
+
+  // Ensure cards are loaded before rendering
+  if (!gameState.players[playerKey] || !gameState.players[opponentKey]) {
+    return <div className="loading">Loading game state...</div>;
+  }
 
   return (
     <div className="game-board">
@@ -356,46 +374,33 @@ export default React.memo<GameBoardProps>(({
         </div>
         <div className="player-hand opponent-hand">
           {gameState.players[opponentKey].hand.map((card: CardType, index: number) => {
-            // Show actual cards if it's the player's own hand, face-down if it's opponent's
-            const isOwnHand = playerRole === 'player2';
-            if (isOwnHand) {
-              const updatedCard = {
-                ...card,
-                imageUrl: card.imageUrl.startsWith('/') && !card.imageUrl.includes(process.env.PUBLIC_URL) 
-                  ? `${process.env.PUBLIC_URL}${card.imageUrl}` 
-                  : card.imageUrl
-              };
-              return <Card key={`opponent-card-${index}`} card={updatedCard} />;
-            } else {
-              return (
-                <div key={`opponent-card-${index}`} className="card card-back">
-                  <img 
-                    src={cardBackMonster} 
-                    alt="Card Back" 
-                    className="card-back-image" 
-                    onError={(e) => {
-                      console.error('Failed to load card back image');
-                      e.currentTarget.src = cardBack;
-                    }}
-                  />
-                  <div className="card-back-overlay"></div>
-                </div>
-              );
-            }
+            // Always show the opponent's hand face-down
+            return (
+              <div key={`opponent-card-${index}`} className="card card-back">
+                <img 
+                  src={cardBackMonster} 
+                  alt="Card Back" 
+                  className="card-back-image" 
+                  onError={(e) => {
+                    console.error('Failed to load card back image');
+                    e.currentTarget.src = cardBack;
+                  }}
+                />
+                <div className="card-back-overlay"></div>
+              </div>
+            );
           })}
         </div>
       </div>
       <div className="battlefield">
         <div className="opponent-field">
           {gameState.battlefield[opponentKey].map((card: CardType) => {
-            // Ensure card has proper image URL format
             const updatedCard = {
               ...card,
               imageUrl: card.imageUrl.startsWith('/') && !card.imageUrl.includes(process.env.PUBLIC_URL) 
                 ? `${process.env.PUBLIC_URL}${card.imageUrl}` 
                 : card.imageUrl
             };
-            
             return (
               <Card
                 key={card.id}
@@ -412,14 +417,12 @@ export default React.memo<GameBoardProps>(({
         </div>
         <div ref={dropRef as unknown as React.RefObject<HTMLDivElement>} className={`player-field ${isOver ? 'field-highlight' : ''}`}>
           {gameState.battlefield[playerKey].map((card: CardType) => {
-            // Ensure card has proper image URL format
             const updatedCard = {
               ...card,
               imageUrl: card.imageUrl.startsWith('/') && !card.imageUrl.includes(process.env.PUBLIC_URL) 
                 ? `${process.env.PUBLIC_URL}${card.imageUrl}` 
                 : card.imageUrl
             };
-            
             return (
               <Card
                 key={card.id}
@@ -446,37 +449,45 @@ export default React.memo<GameBoardProps>(({
           </span>
         </div>
         <div className="player-hand">
-          {gameState.players[playerKey].hand.map((card: CardType) => {
-            const updatedCard = {
-              ...card,
-              imageUrl: card.imageUrl.startsWith('/') && !card.imageUrl.includes(process.env.PUBLIC_URL) 
-                ? `${process.env.PUBLIC_URL}${card.imageUrl}` 
-                : card.imageUrl
-            };
-            return (
-              <Card
-                key={card.id}
-                card={updatedCard}
-                onClick={() => {
-                  const isPlayerTurn = playerRole === 'player1' ? 
-                    (gameState.currentTurn === 'player' && gameState.gameStatus === 'playing') : 
-                    (gameState.currentTurn === 'opponent' && gameState.gameStatus === 'playing');
-                  
-                  if (isPlayerTurn && gameState.battlefield[playerKey].length === 0) {
-                    onCardPlay(card);
-                    addCombatLogEntry(`${playerInfo.name} plays ${card.name}!`, 'play');
-                  }
-                }}
-              />
-            );
-          })}
+          {gameState.players[playerKey].hand.length > 0 ? (
+            gameState.players[playerKey].hand.map((card: CardType) => {
+              const updatedCard = {
+                ...card,
+                imageUrl: card.imageUrl.startsWith('/') && !card.imageUrl.includes(process.env.PUBLIC_URL) 
+                  ? `${process.env.PUBLIC_URL}${card.imageUrl}` 
+                  : card.imageUrl
+              };
+              return (
+                <Card
+                  key={card.id}
+                  card={updatedCard}
+                  onClick={() => {
+                    const isPlayerTurn = playerRole === 'player1' ? 
+                      (gameState.currentTurn === 'player' && gameState.gameStatus === 'playing') : 
+                      (gameState.currentTurn === 'opponent' && gameState.gameStatus === 'playing');
+                    if (isPlayerTurn && gameState.battlefield[playerKey].length === 0) {
+                      onCardPlay(card);
+                      addCombatLogEntry(`${playerInfo.name} plays ${card.name}!`, 'play');
+                      // Let the server manage the turn change
+                      if (roomId) {
+                        socket.emit('cardPlayed', { roomId, card: updatedCard, playerRole });
+                      }
+                    }
+                  }}
+                />
+              );
+            })
+          ) : (
+            <div>No cards available in hand</div>
+          )}
         </div>
       </div>
+      {error && <div className="error-message">{error}</div>}
     </div>
   );
 });
 
-// Player stats display
+// Player stats display (unchanged)
 const PlayerStats = ({ 
   playerKey, 
   energy, 

@@ -1,81 +1,74 @@
-const db = require('./sqlite');
+import db from './sqlite.js'; // Updated to ESM
 
-// Get a player by ID
-const getPlayerById = async (playerId) => {
-  return await db.getPlayer(playerId);
-};
-
-// Create a new player
-const createPlayer = async (playerData) => {
-  return await db.createPlayer(playerData);
-};
-
-// Get player statistics
-const getPlayerStats = async (playerId) => {
-  return new Promise((resolve, reject) => {
-    db.db.all(
-      `SELECT 
-        COUNT(*) as totalGames,
-        SUM(CASE WHEN winner = ? THEN 1 ELSE 0 END) as wins,
-        SUM(CASE WHEN (player1Id = ? OR player2Id = ?) AND winner != ? THEN 1 ELSE 0 END) as losses
-      FROM games 
-      WHERE player1Id = ? OR player2Id = ?`,
-      [playerId, playerId, playerId, playerId, playerId, playerId],
-      (err, rows) => {
-        if (err) reject(err);
-        const stats = rows[0];
-        resolve({
-          totalGames: stats.totalGames || 0,
-          wins: stats.wins || 0,
-          losses: stats.losses || 0,
-          winRate: stats.totalGames > 0 ? (stats.wins / stats.totalGames * 100).toFixed(2) : '0.00'
-        });
-      }
-    );
-  });
-};
-
-// Update player information
-const updatePlayer = async (playerId, updateData) => {
-  const now = Date.now();
+export const createPlayer = async (playerData) => {
+  const { playerId, playerName } = playerData;
   return new Promise((resolve, reject) => {
     db.db.run(
-      'UPDATE players SET playerName = ?, updatedAt = ? WHERE playerId = ?',
-      [updateData.playerName, now, playerId],
-      (err) => {
-        if (err) reject(err);
-        resolve({ playerId, ...updateData, updatedAt: now });
+      'INSERT INTO players (playerId, playerName, createdAt, updatedAt) VALUES (?, ?, ?, ?)',
+      [playerId, playerName, Date.now(), Date.now()],
+      function (err) {
+        if (err) {
+          reject(err);
+        } else {
+          resolve({ playerId, playerName, createdAt: Date.now(), updatedAt: Date.now() });
+        }
       }
     );
   });
 };
 
-// Get recent games for a player
-const getPlayerRecentGames = async (playerId, limit = 10) => {
+export const getPlayer = async (playerId) => {
   return new Promise((resolve, reject) => {
-    db.db.all(
-      `SELECT * FROM games 
-      WHERE player1Id = ? OR player2Id = ? 
-      ORDER BY startTime DESC LIMIT ?`,
-      [playerId, playerId, limit],
-      (err, rows) => {
+    db.db.get('SELECT * FROM players WHERE playerId = ?', [playerId], (err, row) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(row);
+      }
+    });
+  });
+};
+
+export const getPlayerStats = async (playerId) => {
+  try {
+    const gamesAsPlayer1 = await new Promise((resolve, reject) => {
+      db.db.all('SELECT * FROM games WHERE player1Id = ?', [playerId], (err, rows) => {
         if (err) reject(err);
         resolve(rows);
+      });
+    });
+
+    const gamesAsPlayer2 = await new Promise((resolve, reject) => {
+      db.db.all('SELECT * FROM games WHERE player2Id = ?', [playerId], (err, rows) => {
+        if (err) reject(err);
+        resolve(rows);
+      });
+    });
+
+    const allGames = [...gamesAsPlayer1, ...gamesAsPlayer2];
+    const totalGames = allGames.length;
+
+    let wins = 0;
+    allGames.forEach(game => {
+      if (game.winner === 'player' && game.player1Id === playerId) {
+        wins++;
+      } else if (game.winner === 'opponent' && game.player2Id === playerId) {
+        wins++;
       }
-    );
-  });
+    });
+
+    const losses = totalGames - wins;
+    const winRate = totalGames > 0 ? ((wins / totalGames) * 100).toFixed(2) : '0.00';
+
+    return { totalGames, wins, losses, winRate };
+  } catch (error) {
+    console.error('Error fetching player stats:', error);
+    throw error;
+  }
 };
 
-// Get all players
-const getAllPlayers = async () => {
-  return await db.getAllPlayers();
-};
-
-module.exports = {
-  getPlayerById,
-  createPlayer,
-  getPlayerStats,
-  updatePlayer,
-  getPlayerRecentGames,
-  getAllPlayers
+export const updatePlayerStats = async (playerId, wins, losses) => {
+  // Since stats are calculated dynamically in getPlayerStats, this can be a no-op
+  // If you want to store stats in the database, you can add a stats table and update it here
+  return Promise.resolve();
 };
