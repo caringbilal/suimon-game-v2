@@ -9,9 +9,10 @@ interface CardProps {
   isAttacking?: boolean;
   isDefending?: boolean;
   onAnimationEnd?: () => void;
+  onError?: (e: React.SyntheticEvent<HTMLImageElement, Event>) => void; // Add onError prop
 }
 
-const Card: React.FC<CardProps> = ({ card, onClick, isAttacking, isDefending, onAnimationEnd }) => {
+const Card: React.FC<CardProps> = ({ card, onClick, isAttacking, isDefending, onAnimationEnd, onError }) => {
   const [{ isDragging }, dragRef] = useDrag<CardType, unknown, { isDragging: boolean }>({
     type: 'CARD',
     item: card,
@@ -24,7 +25,7 @@ const Card: React.FC<CardProps> = ({ card, onClick, isAttacking, isDefending, on
   console.log(`Card: ${card.name}, HP: ${card.hp}, MaxHP: ${card.maxHp}, Image: ${card.imageUrl}`);
 
   return (
-    <div 
+    <div
       ref={dragRef as unknown as React.LegacyRef<HTMLDivElement>}
       className={`card ${isDragging ? 'card-dragging' : ''} ${isAttacking ? 'attacking' : ''} ${isDefending ? 'defending' : ''}`}
       style={{ opacity: isDragging ? 0.5 : 1 }}
@@ -33,30 +34,13 @@ const Card: React.FC<CardProps> = ({ card, onClick, isAttacking, isDefending, on
     >
       <div className="card-title">
         {card.name}
-        <span className="health-percentage">
-          {Math.round((card.hp / card.maxHp) * 100)}%
-        </span>
+        <span className="health-percentage">{Math.round((card.hp / card.maxHp) * 100)}%</span>
       </div>
       <div className="card-image">
-        <img 
-          src={card.imageUrl.startsWith('/') ? `${process.env.PUBLIC_URL}${card.imageUrl}` : card.imageUrl} 
-          alt={card.name} 
-          onError={(e) => {
-            console.error(`Failed to load image: ${card.imageUrl}`);
-            // If image fails to load, try different path formats
-            if (card.imageUrl.startsWith('/monsters/')) {
-              // Try with PUBLIC_URL if not already using it
-              if (!card.imageUrl.includes(process.env.PUBLIC_URL)) {
-                e.currentTarget.src = `${process.env.PUBLIC_URL}${card.imageUrl}`;
-              } else {
-                // Try without the leading slash
-                e.currentTarget.src = `${process.env.PUBLIC_URL}/monsters/${card.imageUrl.split('/monsters/')[1]}`;
-              }
-            } else if (card.imageUrl.includes('card-back')) {
-              // Special handling for card backs
-              e.currentTarget.src = `${process.env.PUBLIC_URL}/monsters/card-back.png`;
-            }
-          }}
+        <img
+          src={card.imageUrl.startsWith('/') ? `${process.env.PUBLIC_URL}${card.imageUrl}` : card.imageUrl}
+          alt={card.name}
+          onError={onError} // Use the onError prop passed from GameBoard.tsx
         />
       </div>
       <div className="card-stats">

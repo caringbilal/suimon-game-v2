@@ -1,11 +1,11 @@
-import { updatePlayerStats, getPlayer, getPlayerStats, createPlayer } from '../database/players.js'; // Updated to ESM
-import { saveGame, getGame, updateGame, createGame } from '../database/games.js'; // Updated to ESM
-import db from '../database/sqlite.js'; // Updated to ESM
+import { updatePlayerStats, getPlayer, getPlayerStats } from '../database/players.js';
+import { saveGame, getGame, updateGame, createGame } from '../database/games.js';
+import db from '../database/sqlite.js';
 
 // Store active game rooms
 const activeRooms = new Map();
 
-export default (io) => { // Changed to export default
+export default (io) => {
   io.on('connection', (socket) => {
     console.log('A user connected:', socket.id);
 
@@ -27,16 +27,16 @@ export default (io) => { // Changed to export default
         }
 
         const roomId = `room_${Date.now()}`;
-        const existingOrNewPlayer = await getPlayer(playerData.playerId) || await createPlayer(playerData);
+        const existingOrNewPlayer = (await getPlayer(playerData.playerId)) || (await db.createPlayer(playerData));
 
         activeRooms.set(roomId, {
           player1: {
             id: player.playerId,
             name: player.playerName,
-            socket: socket.id
+            socket: socket.id,
           },
           player2: null,
-          gameState: null
+          gameState: null,
         });
 
         socket.join(roomId);
@@ -68,25 +68,30 @@ export default (io) => { // Changed to export default
           return;
         }
 
-        const player = await getPlayer(playerData.playerId) || await createPlayer(playerData);
+        const player = (await getPlayer(playerData.playerId)) || (await db.createPlayer(playerData));
 
         room.player2 = {
           id: player.playerId,
           name: player.playerName,
-          socket: socket.id
+          socket: socket.id,
         };
 
         socket.join(roomId);
 
         // Notify player1 that player2 has joined
+        console.log(`Notifying Player 1 (${room.player1.socket}) that Player 2 (${player.playerName}) has joined`);
         io.to(room.player1.socket).emit('playerJoined', {
           player2: {
             id: player.playerId,
-            name: player.playerName
-          }
+            name: player.playerName,
+          },
         });
 
-        const { getInitialHand } = await import('../data/monsters.js'); // Dynamic import for ESM
+        // Notify player2 of successful join
+        console.log(`Notifying Player 2 (${socket.id}) of successful join to room ${roomId}`);
+        socket.emit('joinSuccess', roomId);
+
+        const { getInitialHand } = await import('../data/monsters.js');
 
         // Generate initial hands for both players
         const player1Hand = getInitialHand(4);
@@ -100,28 +105,28 @@ export default (io) => { // Changed to export default
           opponentMaxHealth: 700,
           combatLog: [],
           killCount: { player: 0, opponent: 0 },
-          battlefield: { player: [], opponent: [] }
+          battlefield: { player: [], opponent: [] },
         };
 
         // Create perspective-based states for each player
         const player1GameState = {
           ...sharedGameState,
           players: {
-            player: { 
-              id: room.player1.id, 
-              energy: 700, 
-              deck: [], 
-              hand: player1Hand.map(card => ({
+            player: {
+              id: room.player1.id,
+              energy: 700,
+              deck: [],
+              hand: player1Hand.map((card) => ({
                 ...card,
                 hp: card.maxHp,
                 id: `${card.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                imageUrl: `/monsters/${card.id}.png`
-              }))
+                imageUrl: `/monsters/${card.id}.png`,
+              })),
             },
-            opponent: { 
-              id: room.player2.id, 
-              energy: 700, 
-              deck: [], 
+            opponent: {
+              id: room.player2.id,
+              energy: 700,
+              deck: [],
               hand: player2Hand.map((_, index) => ({
                 id: `placeholder-p2-${index}-${Date.now()}`,
                 name: 'Hidden Card',
@@ -129,30 +134,30 @@ export default (io) => { // Changed to export default
                 defense: 0,
                 hp: 0,
                 maxHp: 0,
-                imageUrl: '/monsters/card-back.png'
-              }))
-            }
-          }
+                imageUrl: '/monsters/card-back.png',
+              })),
+            },
+          },
         };
 
         const player2GameState = {
           ...sharedGameState,
           players: {
-            player: { 
-              id: room.player2.id, 
-              energy: 700, 
-              deck: [], 
-              hand: player2Hand.map(card => ({
+            player: {
+              id: room.player2.id,
+              energy: 700,
+              deck: [],
+              hand: player2Hand.map((card) => ({
                 ...card,
                 hp: card.maxHp,
                 id: `${card.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                imageUrl: `/monsters/${card.id}.png`
-              }))
+                imageUrl: `/monsters/${card.id}.png`,
+              })),
             },
-            opponent: { 
-              id: room.player1.id, 
-              energy: 700, 
-              deck: [], 
+            opponent: {
+              id: room.player1.id,
+              energy: 700,
+              deck: [],
               hand: player1Hand.map((_, index) => ({
                 id: `placeholder-p1-${index}-${Date.now()}`,
                 name: 'Hidden Card',
@@ -160,11 +165,11 @@ export default (io) => { // Changed to export default
                 defense: 0,
                 hp: 0,
                 maxHp: 0,
-                imageUrl: '/monsters/card-back.png'
-              }))
-            }
+                imageUrl: '/monsters/card-back.png',
+              })),
+            },
           },
-          currentTurn: 'opponent' // Player 2's perspective
+          currentTurn: 'opponent', // Player 2's perspective
         };
 
         // Store both perspectives in the room
@@ -172,26 +177,28 @@ export default (io) => { // Changed to export default
           shared: sharedGameState,
           player1: player1GameState,
           player2: player2GameState,
-          hands: { player1: player1Hand, player2: player2Hand }
+          hands: { player1: player1Hand, player2: player2Hand },
         };
 
         // Emit game state updates to both players using the correct event
+        console.log(`Emitting gameStateUpdated to Player 1 (${room.player1.socket})`);
         io.to(room.player1.socket).emit('gameStateUpdated', {
           gameState: player1GameState,
           playerRole: 'player1',
           players: {
             player1: { id: room.player1.id, name: room.player1.name },
-            player2: { id: room.player2.id, name: room.player2.name }
-          }
+            player2: { id: room.player2.id, name: room.player2.name },
+          },
         });
 
+        console.log(`Emitting gameStateUpdated to Player 2 (${room.player2.socket})`);
         io.to(room.player2.socket).emit('gameStateUpdated', {
           gameState: player2GameState,
           playerRole: 'player2',
           players: {
             player1: { id: room.player1.id, name: room.player1.name },
-            player2: { id: room.player2.id, name: room.player2.name }
-          }
+            player2: { id: room.player2.id, name: room.player2.name },
+          },
         });
 
         // Save the initial game state
@@ -200,7 +207,7 @@ export default (io) => { // Changed to export default
           player1Id: room.player1.id,
           player2Id: room.player2.id,
           gameState: JSON.stringify(room.gameState.shared),
-          startTime: Date.now()
+          startTime: Date.now(),
         });
       } catch (error) {
         console.error('Error joining room:', error);
@@ -231,8 +238,8 @@ export default (io) => { // Changed to export default
           killCount: gameState.killCount,
           players: {
             player: gameState.players.player,
-            opponent: gameState.players.opponent
-          }
+            opponent: gameState.players.opponent,
+          },
         };
 
         // Update player-specific states with correct perspective
@@ -256,10 +263,10 @@ export default (io) => { // Changed to export default
                 defense: 0,
                 hp: 0,
                 maxHp: 0,
-                imageUrl: '/monsters/card-back.png'
-              }))
-            }
-          }
+                imageUrl: '/monsters/card-back.png',
+              })),
+            },
+          },
         };
 
         room.gameState.player2 = {
@@ -279,10 +286,10 @@ export default (io) => { // Changed to export default
                 defense: 0,
                 hp: 0,
                 maxHp: 0,
-                imageUrl: '/monsters/card-back.png'
-              }))
-            }
-          }
+                imageUrl: '/monsters/card-back.png',
+              })),
+            },
+          },
         };
 
         // Update hands if necessary
@@ -293,13 +300,15 @@ export default (io) => { // Changed to export default
         }
 
         // Send updated game states to both players
+        console.log(`Emitting updated gameState to Player 1 (${room.player1.socket})`);
         io.to(room.player1.socket).emit('gameStateUpdated', room.gameState.player1);
+        console.log(`Emitting updated gameState to Player 2 (${room.player2.socket})`);
         io.to(room.player2.socket).emit('gameStateUpdated', room.gameState.player2);
 
         // Save the game state to database
         await updateGame(roomId, {
           ...room.gameState.shared,
-          hands: room.gameState.hands
+          hands: room.gameState.hands,
         });
 
         // Check for game end conditions
@@ -311,7 +320,7 @@ export default (io) => { // Changed to export default
 
           io.to(roomId).emit('gameEnded', {
             winner,
-            finalState: room.gameState.shared
+            finalState: room.gameState.shared,
           });
 
           // Update player stats
@@ -352,7 +361,9 @@ export default (io) => { // Changed to export default
         // Validate turn
         const expectedTurn = isPlayer1 ? 'player' : 'opponent';
         if (room.gameState.shared.currentTurn !== expectedTurn) {
-          console.error(`Invalid turn: Player ${socket.id} tried to play during ${room.gameState.shared.currentTurn}'s turn`);
+          console.error(
+            `Invalid turn: Player ${socket.id} tried to play during ${room.gameState.shared.currentTurn}'s turn`
+          );
           socket.emit('error', 'Not your turn');
           return;
         }
@@ -362,10 +373,10 @@ export default (io) => { // Changed to export default
 
         // Remove card from player's hand
         if (isPlayer1) {
-          room.gameState.hands.player1 = room.gameState.hands.player1.filter(c => c.id !== card.id);
+          room.gameState.hands.player1 = room.gameState.hands.player1.filter((c) => c.id !== card.id);
           room.gameState.player1.players.player.hand = room.gameState.hands.player1;
         } else {
-          room.gameState.hands.player2 = room.gameState.hands.player2.filter(c => c.id !== card.id);
+          room.gameState.hands.player2 = room.gameState.hands.player2.filter((c) => c.id !== card.id);
           room.gameState.player2.players.player.hand = room.gameState.hands.player2;
         }
 
@@ -387,7 +398,7 @@ export default (io) => { // Changed to export default
           defense: 0,
           hp: 0,
           maxHp: 0,
-          imageUrl: '/monsters/card-back.png'
+          imageUrl: '/monsters/card-back.png',
         }));
 
         room.gameState.player2.currentTurn = player2Turn;
@@ -400,24 +411,26 @@ export default (io) => { // Changed to export default
           defense: 0,
           hp: 0,
           maxHp: 0,
-          imageUrl: '/monsters/card-back.png'
+          imageUrl: '/monsters/card-back.png',
         }));
 
         // Send updated game states to both players
+        console.log(`Emitting updated gameState to Player 1 (${room.player1.socket}) after card play`);
         io.to(room.player1.socket).emit('gameStateUpdated', room.gameState.player1);
+        console.log(`Emitting updated gameState to Player 2 (${room.player2.socket}) after card play`);
         io.to(room.player2.socket).emit('gameStateUpdated', room.gameState.player2);
 
         // Save the game state to database
         await updateGame(roomId, {
           ...room.gameState.shared,
-          hands: room.gameState.hands
+          hands: room.gameState.hands,
         });
 
         // Broadcast the updated battlefield state
         io.to(roomId).emit('cardPlayed', {
           playerRole,
           card,
-          battlefield: room.gameState.shared.battlefield
+          battlefield: room.gameState.shared.battlefield,
         });
       } catch (error) {
         console.error('Error handling card play:', error);
@@ -469,9 +482,9 @@ export default (io) => { // Changed to export default
         const playerStats = await getPlayerStats(playerId);
 
         if (player) {
-          socket.emit('playerData', { 
+          socket.emit('playerData', {
             ...player,
-            stats: playerStats || { totalGames: 0, wins: 0, losses: 0, winRate: '0.00' }
+            stats: playerStats || { totalGames: 0, wins: 0, losses: 0, winRate: '0.00' },
           });
         } else {
           socket.emit('playerFetchError', 'Player not found');
@@ -490,7 +503,7 @@ export default (io) => { // Changed to export default
         if (room.player1?.socket === socket.id || room.player2?.socket === socket.id) {
           io.to(roomId).emit('playerDisconnected', {
             message: 'Opponent disconnected',
-            disconnectedPlayer: room.player1?.socket === socket.id ? 'player1' : 'player2'
+            disconnectedPlayer: room.player1?.socket === socket.id ? 'player1' : 'player2',
           });
           activeRooms.delete(roomId);
           break;

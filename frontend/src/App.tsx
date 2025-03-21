@@ -3,7 +3,7 @@ import { GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
 import './App.css';
 import './styles/room-info.css';
-import GameBoard from '@components/GameBoard';
+import GameBoard from './components/GameBoard'; // Fixed import path
 import GameOver from './components/GameOver';
 import { GameState, CardType } from './types/game';
 import { DndProvider } from 'react-dnd';
@@ -26,7 +26,7 @@ const socket: Socket = io(SERVER_URL, {
   reconnectionDelayMax: 5000,
   timeout: 20000,
   autoConnect: false,
-  forceNew: true
+  forceNew: true,
 });
 
 // Login component
@@ -52,8 +52,9 @@ const LoginScreen: React.FC = () => {
           },
           body: JSON.stringify({
             playerId: decoded.sub,
-            playerName: decoded.name
-          })
+            playerName: decoded.name,
+          }),
+          credentials: 'include', // Include cookies for session
         });
         if (!response.ok) {
           throw new Error('Failed to register player');
@@ -107,18 +108,22 @@ function App() {
   const [playerRole, setPlayerRole] = useState<'player1' | 'player2' | null>(null);
   const [joinRoomInput, setJoinRoomInput] = useState('');
   const [dialogMessage, setDialogMessage] = useState<string | null>(null);
-  const [players, setPlayers] = useState<Array<{ playerId: string; playerName: string; createdAt: number; updatedAt: number; }>>([]);
-  const [games, setGames] = useState<Array<{ gameId: string; startTime: number; player1Id: string; player2Id: string; gameState: string; winner: string; }>>([]);
+  const [players, setPlayers] = useState<
+    Array<{ playerId: string; playerName: string; createdAt: number; updatedAt: number }>
+  >([]);
+  const [games, setGames] = useState<
+    Array<{ gameId: string; startTime: number; player1Id: string; player2Id: string; gameState: string; winner: string }>
+  >([]);
 
   // Player info constants
   const player1Info = {
     name: playerRole === 'player1' ? (user?.name || 'Player 1') : 'Opponent',
-    avatar: playerRole === 'player1' ? (user?.picture || PlayerProfile) : OpponentProfile
+    avatar: playerRole === 'player1' ? (user?.picture || PlayerProfile) : OpponentProfile,
   };
 
   const player2Info = {
     name: playerRole === 'player2' ? (user?.name || 'Player 2') : 'Opponent',
-    avatar: playerRole === 'player2' ? (user?.picture || PlayerProfile) : OpponentProfile
+    avatar: playerRole === 'player2' ? (user?.picture || PlayerProfile) : OpponentProfile,
   };
 
   // Determine current player and opponent info based on role
@@ -131,10 +136,7 @@ function App() {
       if (!prev) return prev;
       return {
         ...prev,
-        combatLog: [
-          ...prev.combatLog,
-          { timestamp: Date.now(), message, type },
-        ],
+        combatLog: [...prev.combatLog, { timestamp: Date.now(), message, type }],
       };
     });
   }, []);
@@ -144,7 +146,9 @@ function App() {
     const fetchData = async () => {
       try {
         // Fetch players data
-        const playersResponse = await fetch(`${SERVER_URL}/players`);
+        const playersResponse = await fetch(`${SERVER_URL}/players`, {
+          credentials: 'include', // Include cookies for session
+        });
         if (!playersResponse.ok) {
           throw new Error(`HTTP error! status: ${playersResponse.status}`);
         }
@@ -153,7 +157,9 @@ function App() {
         setPlayers(Array.isArray(playersData) ? playersData : []);
 
         // Fetch games data
-        const gamesResponse = await fetch(`${SERVER_URL}/games`);
+        const gamesResponse = await fetch(`${SERVER_URL}/games`, {
+          credentials: 'include', // Include cookies for session
+        });
         if (!gamesResponse.ok) {
           throw new Error(`HTTP error! status: ${gamesResponse.status}`);
         }
@@ -184,17 +190,17 @@ function App() {
     }
 
     socket.connect();
-    socket.io.on("reconnect_attempt", () => {
-      setDialogMessage("Attempting to reconnect...");
+    socket.io.on('reconnect_attempt', () => {
+      setDialogMessage('Attempting to reconnect...');
     });
 
-    socket.io.on("reconnect", () => {
-      setDialogMessage("Reconnected to server!");
+    socket.io.on('reconnect', () => {
+      setDialogMessage('Reconnected to server!');
       setTimeout(() => setDialogMessage(null), 3000);
     });
 
-    socket.io.on("reconnect_failed", () => {
-      setDialogMessage("Failed to reconnect. Please refresh the page.");
+    socket.io.on('reconnect_failed', () => {
+      setDialogMessage('Failed to reconnect. Please refresh the page.');
     });
   }, [user]);
 
@@ -205,7 +211,7 @@ function App() {
       // Initialize socket connection
       initializeSocket();
       socket.on('connect', () => {
-        console.log('Connected to server at', SERVER_URL);
+        console.log('Connected to server at', SERVER_URL, 'with socket ID:', socket.id);
       });
 
       socket.on('roomCreated', (data: { roomId: string; player: any }) => {
@@ -216,13 +222,15 @@ function App() {
         console.log('================================');
         console.log('Share this Room ID with your opponent to start playing!');
 
-        setDialogMessage(`Room ${data.roomId} created successfully. Share this Room ID with your opponent to start playing!`);
+        setDialogMessage(
+          `Room ${data.roomId} created successfully. Share this Room ID with your opponent to start playing!`
+        );
         setRoomId(data.roomId);
         setPlayerRole('player1');
 
         // Force a re-render of the RoomInfoBox component
         setTimeout(() => {
-          setRoomId(prev => prev);
+          setRoomId((prev) => prev);
         }, 100);
       });
 
@@ -240,37 +248,46 @@ function App() {
         setDialogMessage('Successfully joined the room. Game will start soon...');
         setRoomId(id);
         setPlayerRole('player2');
+        // Force a re-render to ensure gameState is checked after joinSuccess
+        setTimeout(() => {
+          setRoomId((prev) => prev);
+        }, 100);
       });
 
-      socket.on('gameStateUpdated', (data: { gameState: GameState; playerRole?: 'player1' | 'player2'; players?: { player1: any; player2: any } }) => {
-        console.log('Game state updated received:', data);
-        if (data.playerRole) {
-          setPlayerRole(data.playerRole);
-        }
-        if (data.gameState) {
-          setGameState(data.gameState);
-          if (data.gameState.gameStatus === 'finished') {
-            const winner = data.gameState.players.player.energy <= 0 ? 'opponent' : 'player';
-            const winnerName = data.gameState.winner?.name || (winner === 'player' ? currentPlayerInfo.name : currentOpponentInfo.name);
-            setDialogMessage(`Game Over! ${winnerName} wins!`);
-            // Emit gameEnded event to the server
-            if (roomId && user) {
-              socket.emit('gameEnded', {
-                roomId,
-                player1Id: playerRole === 'player1' ? user.sub : '',
-                player2Id: playerRole === 'player2' ? user.sub : '',
-                player1Wins: winner === 'player' && playerRole === 'player1' ? 1 : 0,
-                player1Losses: winner === 'opponent' && playerRole === 'player1' ? 1 : 0,
-                player2Wins: winner === 'player' && playerRole === 'player2' ? 1 : 0,
-                player2Losses: winner === 'opponent' && playerRole === 'player2' ? 1 : 0,
-                gameState: data.gameState
-              });
+      socket.on(
+        'gameStateUpdated',
+        (data: { gameState: GameState; playerRole?: 'player1' | 'player2'; players?: { player1: any; player2: any } }) => {
+          console.log('Game state updated received for socket ID:', socket.id, 'data:', data);
+          if (data.playerRole) {
+            setPlayerRole(data.playerRole);
+          }
+          if (data.gameState) {
+            setGameState(data.gameState);
+            if (data.gameState.gameStatus === 'finished') {
+              const winner = data.gameState.players.player.energy <= 0 ? 'opponent' : 'player';
+              const winnerName =
+                data.gameState.winner?.name ||
+                (winner === 'player' ? currentPlayerInfo.name : currentOpponentInfo.name);
+              setDialogMessage(`Game Over! ${winnerName} wins!`);
+              // Emit gameEnded event to the server
+              if (roomId && user) {
+                socket.emit('gameEnded', {
+                  roomId,
+                  player1Id: playerRole === 'player1' ? user.sub : '',
+                  player2Id: playerRole === 'player2' ? user.sub : '',
+                  player1Wins: winner === 'player' && playerRole === 'player1' ? 1 : 0,
+                  player1Losses: winner === 'opponent' && playerRole === 'player1' ? 1 : 0,
+                  player2Wins: winner === 'player' && playerRole === 'player2' ? 1 : 0,
+                  player2Losses: winner === 'opponent' && playerRole === 'player2' ? 1 : 0,
+                  gameState: data.gameState,
+                });
+              }
+            } else {
+              setDialogMessage(null);
             }
-          } else {
-            setDialogMessage(null);
           }
         }
-      });
+      );
 
       socket.on('error', (msg: string) => {
         console.log('Error received:', msg);
@@ -318,9 +335,7 @@ function App() {
     if (!gameState || !roomId || !playerRole) return;
 
     const isPlayerTurn =
-      playerRole === 'player1'
-        ? gameState.currentTurn === 'player'
-        : gameState.currentTurn === 'opponent';
+      playerRole === 'player1' ? gameState.currentTurn === 'player' : gameState.currentTurn === 'opponent';
     if (!isPlayerTurn) return;
 
     socket.emit('cardPlayed', { roomId, card, playerRole });
@@ -336,7 +351,7 @@ function App() {
       newKillCount[killerKey] += 1;
       return {
         ...prevState,
-        killCount: newKillCount
+        killCount: newKillCount,
       };
     });
   }, []);
@@ -382,15 +397,15 @@ function App() {
     const winner = playerEnergy <= 0 ? 'opponent' : 'player';
 
     // Refresh leaderboard data
-    fetch(`${SERVER_URL}/games`)
-      .then(response => response.json())
-      .then(data => setGames(data))
-      .catch(error => console.error('Error fetching games:', error));
+    fetch(`${SERVER_URL}/games`, { credentials: 'include' })
+      .then((response) => response.json())
+      .then((data) => setGames(data))
+      .catch((error) => console.error('Error fetching games:', error));
 
-    fetch(`${SERVER_URL}/players`)
-      .then(response => response.json())
-      .then(data => setPlayers(data))
-      .catch(error => console.error('Error fetching players:', error));
+    fetch(`${SERVER_URL}/players`, { credentials: 'include' })
+      .then((response) => response.json())
+      .then((data) => setPlayers(data))
+      .catch((error) => console.error('Error fetching players:', error));
 
     return (
       <GameOver
@@ -414,10 +429,13 @@ function App() {
     return (
       <DndProvider backend={HTML5Backend}>
         <div className="game-container">
-          <LogoutButton className="logout-button-game" onSignOut={() => {
-            socket.emit('logout', user?.sub);
-            signOut();
-          }} />
+          <LogoutButton
+            className="logout-button-game"
+            onSignOut={() => {
+              socket.emit('logout', user?.sub);
+              signOut();
+            }}
+          />
           <GameBoard
             gameState={gameState}
             onCardPlay={handleCardPlay}
@@ -443,10 +461,13 @@ function App() {
       <div className="user-profile">
         <img src={user?.picture || PlayerProfile} alt="Profile" className="profile-image" />
         <h2>Welcome, {user?.name || 'Player'}!</h2>
-        <LogoutButton className="logout-button-lobby" onSignOut={() => {
-          socket.emit('logout', user?.sub);
-          signOut();
-        }} />
+        <LogoutButton
+          className="logout-button-lobby"
+          onSignOut={() => {
+            socket.emit('logout', user?.sub);
+            signOut();
+          }}
+        />
       </div>
 
       <h1>Suimon Card Game</h1>
