@@ -21,7 +21,7 @@ const Card: React.FC<CardProps> = ({ card, onClick, isAttacking, isDefending, on
   });
 
   // Log card details outside of JSX
-  console.log(`Card: ${card.name}, HP: ${card.hp}, MaxHP: ${card.maxHp}`);
+  console.log(`Card: ${card.name}, HP: ${card.hp}, MaxHP: ${card.maxHp}, Image: ${card.imageUrl}`);
 
   return (
     <div 
@@ -38,7 +38,26 @@ const Card: React.FC<CardProps> = ({ card, onClick, isAttacking, isDefending, on
         </span>
       </div>
       <div className="card-image">
-        <img src={require(`../assets/monsters/${card.name.toLowerCase()}.png`)} alt={card.name} />
+        <img 
+          src={card.imageUrl.startsWith('/') ? `${process.env.PUBLIC_URL}${card.imageUrl}` : card.imageUrl} 
+          alt={card.name} 
+          onError={(e) => {
+            console.error(`Failed to load image: ${card.imageUrl}`);
+            // If image fails to load, try different path formats
+            if (card.imageUrl.startsWith('/monsters/')) {
+              // Try with PUBLIC_URL if not already using it
+              if (!card.imageUrl.includes(process.env.PUBLIC_URL)) {
+                e.currentTarget.src = `${process.env.PUBLIC_URL}${card.imageUrl}`;
+              } else {
+                // Try without the leading slash
+                e.currentTarget.src = `${process.env.PUBLIC_URL}/monsters/${card.imageUrl.split('/monsters/')[1]}`;
+              }
+            } else if (card.imageUrl.includes('card-back')) {
+              // Special handling for card backs
+              e.currentTarget.src = `${process.env.PUBLIC_URL}/monsters/card-back.png`;
+            }
+          }}
+        />
       </div>
       <div className="card-stats">
         <div className="stat">

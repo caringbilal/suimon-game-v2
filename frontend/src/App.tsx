@@ -229,24 +229,10 @@ function App() {
         setTimeout(() => {
           setRoomId(prev => prev);
         }, 100);
-        // Initialize game state with waiting status
+        // Initialize game state with waiting status and initial hand
         setGameState({
           players: {
-            player: { id: 'player1', energy: MAX_ENERGY, deck: [], hand: [] },
-            opponent: { id: 'player2', energy: MAX_ENERGY, deck: [], hand: [] }
-          },
-          battlefield: { player: [], opponent: [] },
-          currentTurn: 'player',
-          gameStatus: 'waiting',
-          playerMaxHealth: MAX_ENERGY,
-          opponentMaxHealth: MAX_ENERGY,
-          combatLog: [],
-          killCount: { player: 0, opponent: 0 }
-        });
-        // Initialize game state with waiting status
-        setGameState({
-          players: {
-            player: { id: 'player1', energy: MAX_ENERGY, deck: [], hand: [] },
+            player: { id: 'player1', energy: MAX_ENERGY, deck: [], hand: getInitialHand(4) },
             opponent: { id: 'player2', energy: MAX_ENERGY, deck: [], hand: [] }
           },
           battlefield: { player: [], opponent: [] },
@@ -295,31 +281,35 @@ function App() {
         setDialogMessage('Successfully joined the room. Game will start soon...');
         setRoomId(id);
         setPlayerRole('player2');
-      });
-
-      socket.on('gameStart', (data: { gameState: GameState; playerRole: 'player1' | 'player2'; players: { player1: any; player2: any } }) => {
-        console.log('Game start event received:', data);
-        setDialogMessage('Game starting...');
         
-        if (data.playerRole) {
-          setPlayerRole(data.playerRole);
-        }
-        
-        if (data.players) {
-          setPlayerNames({
-            player1: data.players.player1.name,
-            player2: data.players.player2.name
-          });
-        }
-        
-        if (data.gameState) {
-          console.log('Setting initial game state:', data.gameState);
-          setGameState(data.gameState);
-        }
+        // Initialize game state for player 2 with initial hand
+        setGameState({
+          players: {
+            player: { id: 'player1', energy: MAX_ENERGY, deck: [], hand: [] },
+            opponent: { id: 'player2', energy: MAX_ENERGY, deck: [], hand: getInitialHand(4) }
+          },
+          battlefield: { player: [], opponent: [] },
+          currentTurn: 'player',
+          gameStatus: 'waiting',
+          playerMaxHealth: MAX_ENERGY,
+          opponentMaxHealth: MAX_ENERGY,
+          combatLog: [],
+          killCount: { player: 0, opponent: 0 }
+        });
       });
 
       socket.on('gameStateUpdate', (newState: GameState) => {
         console.log('Game state update received:', newState);
+        setGameState(newState);
+        if (newState.gameStatus === 'finished' && newState.winner) {
+          setDialogMessage(`Game Over! ${newState.winner.name} wins!`);
+        } else {
+          setDialogMessage(null);
+        }
+      });
+      
+      socket.on('gameStateUpdated', (newState: GameState) => {
+        console.log('Game state updated received:', newState);
         setGameState(newState);
         if (newState.gameStatus === 'finished' && newState.winner) {
           setDialogMessage(`Game Over! ${newState.winner.name} wins!`);
@@ -401,7 +391,7 @@ function App() {
     };
 
     setGameState(newState);
-    socket.emit('updateGameState', roomId, newState);
+    socket.emit('updateGame', { roomId, gameState: newState, playerRole });
   };
 
   // Handle card defeated event

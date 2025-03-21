@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import '../styles/leaderboard.css';
 
 interface Player {
@@ -23,6 +23,49 @@ interface LeaderboardTableProps {
 }
 
 const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ players, games }) => {
+  // Pagination state
+  const [currentGamePage, setCurrentGamePage] = useState(1);
+  const [currentPlayerPage, setCurrentPlayerPage] = useState(1);
+  const rowsPerPage = 7;
+  
+  // Calculate total pages
+  const totalGamePages = Math.ceil(games.length / rowsPerPage);
+  const totalPlayerPages = Math.ceil(players.length / rowsPerPage);
+  
+  // Get current page data
+  const indexOfLastGame = currentGamePage * rowsPerPage;
+  const indexOfFirstGame = indexOfLastGame - rowsPerPage;
+  const currentGames = games.slice(indexOfFirstGame, indexOfLastGame);
+  
+  const indexOfLastPlayer = currentPlayerPage * rowsPerPage;
+  const indexOfFirstPlayer = indexOfLastPlayer - rowsPerPage;
+  const currentPlayers = players.slice(indexOfFirstPlayer, indexOfLastPlayer);
+  
+  // Change page handlers
+  const nextGamePage = () => {
+    if (currentGamePage < totalGamePages) {
+      setCurrentGamePage(currentGamePage + 1);
+    }
+  };
+  
+  const prevGamePage = () => {
+    if (currentGamePage > 1) {
+      setCurrentGamePage(currentGamePage - 1);
+    }
+  };
+  
+  const nextPlayerPage = () => {
+    if (currentPlayerPage < totalPlayerPages) {
+      setCurrentPlayerPage(currentPlayerPage + 1);
+    }
+  };
+  
+  const prevPlayerPage = () => {
+    if (currentPlayerPage > 1) {
+      setCurrentPlayerPage(currentPlayerPage - 1);
+    }
+  };
+
   const calculatePlayerStats = (playerId: string) => {
     return games.reduce(
       (stats, game) => {
@@ -56,7 +99,7 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ players, games }) =
             </tr>
           </thead>
           <tbody>
-            {games.length > 0 ? games.map((game) => {
+            {currentGames.length > 0 ? currentGames.map((game) => {
               const player1 = players.find(p => p.playerId === game.player1Id);
               const player2 = players.find(p => p.playerId === game.player2Id);
               const winner = players.find(p => p.playerId === game.winner);
@@ -77,6 +120,27 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ players, games }) =
             )}
           </tbody>
         </table>
+        {games.length > 0 && (
+          <div className="pagination-controls">
+            <button 
+              onClick={prevGamePage} 
+              disabled={currentGamePage === 1}
+              className="pagination-button"
+            >
+              Previous
+            </button>
+            <span className="page-indicator">
+              Page {currentGamePage} of {totalGamePages}
+            </span>
+            <button 
+              onClick={nextGamePage} 
+              disabled={currentGamePage === totalGamePages}
+              className="pagination-button"
+            >
+              Next
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="table-section">
@@ -92,7 +156,7 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ players, games }) =
             </tr>
           </thead>
           <tbody>
-            {players.length > 0 ? players.map((player) => {
+            {currentPlayers.length > 0 ? currentPlayers.map((player) => {
               const stats = playerStats.get(player.playerId) || { totalGames: 0, wins: 0, winRate: '0.0' };
               return (
                 <tr key={player.playerId}>
@@ -110,6 +174,27 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ players, games }) =
             )}
           </tbody>
         </table>
+        {players.length > 0 && (
+          <div className="pagination-controls">
+            <button 
+              onClick={prevPlayerPage} 
+              disabled={currentPlayerPage === 1}
+              className="pagination-button"
+            >
+              Previous
+            </button>
+            <span className="page-indicator">
+              Page {currentPlayerPage} of {totalPlayerPages}
+            </span>
+            <button 
+              onClick={nextPlayerPage} 
+              disabled={currentPlayerPage === totalPlayerPages}
+              className="pagination-button"
+            >
+              Next
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

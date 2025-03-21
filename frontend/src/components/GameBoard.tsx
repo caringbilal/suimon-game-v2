@@ -2,6 +2,9 @@ import React, { useState, useEffect, Dispatch, SetStateAction, useCallback } fro
 import { GameState, CardType } from '../types/game';
 import Card from './Card';
 import cardBack from '../assets/ui/card-back.png';
+import cardBackMonster from '../assets/monsters/card-back.png';
+// Use both card back images to ensure they're properly loaded
+import '../assets/monsters/card-back.png'; // Also import from monsters folder for backend reference
 import '../styles/combat.css';
 import '../styles/player.css';
 import '../styles/game-stats.css';
@@ -52,11 +55,11 @@ export default React.memo<GameBoardProps>(({
 
   // Sync game state with server
   useEffect(() => {
-    socket.on('updateGameState', (newState: GameState) => {
+    socket.on('gameStateUpdated', (newState: GameState) => {
       setGameState(newState);
     });
     return () => {
-      socket.off('updateGameState');
+      socket.off('gameStateUpdated');
     };
   }, [socket, setGameState]);
 
@@ -157,7 +160,7 @@ export default React.memo<GameBoardProps>(({
 
     setGameState(updatedState);
     if (roomId) {
-      socket.emit('updateGameState', roomId, updatedState);
+      socket.emit('updateGame', { roomId, gameState: updatedState, playerRole });
     }
   }, [gameState, onCardDefeated, opponentInfo.name, playerInfo.name, roomId, socket, setGameState]);
 
@@ -205,7 +208,7 @@ export default React.memo<GameBoardProps>(({
         };
         setGameState(newState);
         if (roomId) {
-          socket.emit('updateGameState', roomId, newState);
+          socket.emit('updateGame', { roomId, gameState: newState, playerRole });
         }
       }
       return undefined;
@@ -232,7 +235,7 @@ export default React.memo<GameBoardProps>(({
     };
     setGameState(newState);
     if (roomId) {
-      socket.emit('updateGameState', roomId, newState);
+      socket.emit('updateGame', { roomId, gameState: newState, playerRole });
     }
   }, [gameState.players.player.hand, gameState.players.opponent.hand, roomId, socket, setGameState]);
 
@@ -352,41 +355,84 @@ export default React.memo<GameBoardProps>(({
           </span>
         </div>
         <div className="player-hand opponent-hand">
-          {gameState.players[opponentKey].hand.map((card: CardType) => (
-            <div key={card.id} className="card">
-              <img src={cardBack} alt="Card Back" className="card-back-image" />
-            </div>
-          ))}
+          {gameState.players[opponentKey].hand.map((card: CardType, index: number) => {
+            // Show actual cards if it's the player's own hand, face-down if it's opponent's
+            const isOwnHand = playerRole === 'player2';
+            if (isOwnHand) {
+              const updatedCard = {
+                ...card,
+                imageUrl: card.imageUrl.startsWith('/') && !card.imageUrl.includes(process.env.PUBLIC_URL) 
+                  ? `${process.env.PUBLIC_URL}${card.imageUrl}` 
+                  : card.imageUrl
+              };
+              return <Card key={`opponent-card-${index}`} card={updatedCard} />;
+            } else {
+              return (
+                <div key={`opponent-card-${index}`} className="card card-back">
+                  <img 
+                    src={cardBackMonster} 
+                    alt="Card Back" 
+                    className="card-back-image" 
+                    onError={(e) => {
+                      console.error('Failed to load card back image');
+                      e.currentTarget.src = cardBack;
+                    }}
+                  />
+                  <div className="card-back-overlay"></div>
+                </div>
+              );
+            }
+          })}
         </div>
       </div>
       <div className="battlefield">
         <div className="opponent-field">
-          {gameState.battlefield[opponentKey].map((card: CardType) => (
-            <Card
-              key={card.id}
-              card={card}
-              isAttacking={attackingCard === card.id}
-              isDefending={defendingCard === card.id}
-              onAnimationEnd={() => {
-                if (attackingCard === card.id) setAttackingCard(null);
-                if (defendingCard === card.id) setDefendingCard(null);
-              }}
-            />
-          ))}
+          {gameState.battlefield[opponentKey].map((card: CardType) => {
+            // Ensure card has proper image URL format
+            const updatedCard = {
+              ...card,
+              imageUrl: card.imageUrl.startsWith('/') && !card.imageUrl.includes(process.env.PUBLIC_URL) 
+                ? `${process.env.PUBLIC_URL}${card.imageUrl}` 
+                : card.imageUrl
+            };
+            
+            return (
+              <Card
+                key={card.id}
+                card={updatedCard}
+                isAttacking={attackingCard === card.id}
+                isDefending={defendingCard === card.id}
+                onAnimationEnd={() => {
+                  if (attackingCard === card.id) setAttackingCard(null);
+                  if (defendingCard === card.id) setDefendingCard(null);
+                }}
+              />
+            );
+          })}
         </div>
         <div ref={dropRef as unknown as React.RefObject<HTMLDivElement>} className={`player-field ${isOver ? 'field-highlight' : ''}`}>
-          {gameState.battlefield[playerKey].map((card: CardType) => (
-            <Card
-              key={card.id}
-              card={card}
-              isAttacking={attackingCard === card.id}
-              isDefending={defendingCard === card.id}
-              onAnimationEnd={() => {
-                if (attackingCard === card.id) setAttackingCard(null);
-                if (defendingCard === card.id) setDefendingCard(null);
-              }}
-            />
-          ))}
+          {gameState.battlefield[playerKey].map((card: CardType) => {
+            // Ensure card has proper image URL format
+            const updatedCard = {
+              ...card,
+              imageUrl: card.imageUrl.startsWith('/') && !card.imageUrl.includes(process.env.PUBLIC_URL) 
+                ? `${process.env.PUBLIC_URL}${card.imageUrl}` 
+                : card.imageUrl
+            };
+            
+            return (
+              <Card
+                key={card.id}
+                card={updatedCard}
+                isAttacking={attackingCard === card.id}
+                isDefending={defendingCard === card.id}
+                onAnimationEnd={() => {
+                  if (attackingCard === card.id) setAttackingCard(null);
+                  if (defendingCard === card.id) setDefendingCard(null);
+                }}
+              />
+            );
+          })}
         </div>
       </div>
       <div className={`player-area current-player ${gameState.currentTurn === playerKey ? 'active-turn' : ''}`}>
@@ -400,13 +446,30 @@ export default React.memo<GameBoardProps>(({
           </span>
         </div>
         <div className="player-hand">
-          {gameState.players[playerKey].hand.map((card: CardType) => (
-            <Card 
-              key={card.id} 
-              card={card} 
-              onClick={() => gameState.currentTurn === playerKey ? onCardPlay(card) : null} 
-            />
-          ))}
+          {gameState.players[playerKey].hand.map((card: CardType) => {
+            const updatedCard = {
+              ...card,
+              imageUrl: card.imageUrl.startsWith('/') && !card.imageUrl.includes(process.env.PUBLIC_URL) 
+                ? `${process.env.PUBLIC_URL}${card.imageUrl}` 
+                : card.imageUrl
+            };
+            return (
+              <Card
+                key={card.id}
+                card={updatedCard}
+                onClick={() => {
+                  const isPlayerTurn = playerRole === 'player1' ? 
+                    (gameState.currentTurn === 'player' && gameState.gameStatus === 'playing') : 
+                    (gameState.currentTurn === 'opponent' && gameState.gameStatus === 'playing');
+                  
+                  if (isPlayerTurn && gameState.battlefield[playerKey].length === 0) {
+                    onCardPlay(card);
+                    addCombatLogEntry(`${playerInfo.name} plays ${card.name}!`, 'play');
+                  }
+                }}
+              />
+            );
+          })}
         </div>
       </div>
     </div>

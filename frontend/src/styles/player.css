@@ -182,10 +182,11 @@
   gap: 10px;
 }
 
-.opponent-hand .card:nth-child(1) { transform: rotate(30deg) translateX(-200px) translateY(-15px) scale(0.85); }
-.opponent-hand .card:nth-child(2) { transform: rotate(10deg) translateX(-100px) translateY(-10px) scale(0.85); }
-.opponent-hand .card:nth-child(3) { transform: rotate(-10deg) translateX(100px) translateY(-10px) scale(0.85); }
-.opponent-hand .card:nth-child(4) { transform: rotate(-30deg) translateX(200px) translateY(-15px) scale(0.85); }
+.opponent-hand .card:nth-child(1) { transform: rotate(15deg) translateX(-80px) translateY(-5px) scale(0.85); }
+.opponent-hand .card:nth-child(2) { transform: rotate(5deg) translateX(-30px) translateY(-5px) scale(0.85); }
+.opponent-hand .card:nth-child(3) { transform: rotate(-5deg) translateX(30px) translateY(-5px) scale(0.85); }
+.opponent-hand .card:nth-child(4) { transform: rotate(-15deg) translateX(80px) translateY(-5px) scale(0.85); }
+.opponent-hand .card:nth-child(5) { transform: rotate(-20deg) translateX(120px) translateY(-5px) scale(0.85); }
 /* Keep existing styles up to opponent-hand card transformations */
 
 .hp-bar {
