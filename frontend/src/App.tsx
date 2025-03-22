@@ -3,7 +3,7 @@ import { GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
 import './App.css';
 import './styles/room-info.css';
-import GameBoard from './components/GameBoard'; // Fixed import path
+import GameBoard from './components/GameBoard';
 import GameOver from './components/GameOver';
 import { GameState, CardType } from './types/game';
 import { DndProvider } from 'react-dnd';
@@ -18,15 +18,12 @@ import RoomInfoBox from './components/RoomInfoBox';
 
 // Define the server URL for AWS deployment
 const SERVER_URL = process.env.REACT_APP_API_URL || 'http://localhost:3002';
+
+// Initialize socket outside the component to ensure a single instance
 const socket: Socket = io(SERVER_URL, {
   transports: ['websocket', 'polling'],
-  reconnection: true,
-  reconnectionAttempts: Infinity,
-  reconnectionDelay: 1000,
-  reconnectionDelayMax: 5000,
-  timeout: 20000,
+  reconnection: true, // Enable reconnection
   autoConnect: false,
-  forceNew: true,
 });
 
 // Login component
@@ -54,7 +51,7 @@ const LoginScreen: React.FC = () => {
             playerId: decoded.sub,
             playerName: decoded.name,
           }),
-          credentials: 'include', // Include cookies for session
+          credentials: 'include',
         });
         if (!response.ok) {
           throw new Error('Failed to register player');
@@ -114,21 +111,16 @@ function App() {
   const [games, setGames] = useState<
     Array<{ gameId: string; startTime: number; player1Id: string; player2Id: string; gameState: string; winner: string }>
   >([]);
+  const [opponentInfo, setOpponentInfo] = useState<{ name: string; avatar: string }>({
+    name: 'Waiting...',
+    avatar: OpponentProfile,
+  });
 
-  // Player info constants
-  const player1Info = {
-    name: playerRole === 'player1' ? (user?.name || 'Player 1') : 'Opponent',
-    avatar: playerRole === 'player1' ? (user?.picture || PlayerProfile) : OpponentProfile,
+  // Player info for the current user
+  const playerInfo = {
+    name: user?.name || 'Player',
+    avatar: user?.picture || PlayerProfile,
   };
-
-  const player2Info = {
-    name: playerRole === 'player2' ? (user?.name || 'Player 2') : 'Opponent',
-    avatar: playerRole === 'player2' ? (user?.picture || PlayerProfile) : OpponentProfile,
-  };
-
-  // Determine current player and opponent info based on role
-  const currentPlayerInfo = playerRole === 'player1' ? player1Info : player2Info;
-  const currentOpponentInfo = playerRole === 'player1' ? player2Info : player1Info;
 
   // Memoized function to add combat log entries
   const addCombatLogEntry = useCallback((message: string, type: string = 'info') => {
@@ -145,9 +137,8 @@ function App() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch players data
         const playersResponse = await fetch(`${SERVER_URL}/players`, {
-          credentials: 'include', // Include cookies for session
+          credentials: 'include',
         });
         if (!playersResponse.ok) {
           throw new Error(`HTTP error! status: ${playersResponse.status}`);
@@ -156,9 +147,8 @@ function App() {
         console.log('Fetched players data:', playersData);
         setPlayers(Array.isArray(playersData) ? playersData : []);
 
-        // Fetch games data
         const gamesResponse = await fetch(`${SERVER_URL}/games`, {
-          credentials: 'include', // Include cookies for session
+          credentials: 'include',
         });
         if (!gamesResponse.ok) {
           throw new Error(`HTTP error! status: ${gamesResponse.status}`);
@@ -177,39 +167,18 @@ function App() {
     }
   }, [isAuthenticated, user]);
 
-  // Initialize socket connection
-  const initializeSocket = useCallback(() => {
-    // Disconnect existing connection if any
-    if (socket.connected) {
-      socket.disconnect();
-    }
-
-    // Set query parameters to include player ID if authenticated
-    if (user && user.sub) {
-      socket.io.opts.query = { playerId: user.sub };
-    }
-
-    socket.connect();
-    socket.io.on('reconnect_attempt', () => {
-      setDialogMessage('Attempting to reconnect...');
-    });
-
-    socket.io.on('reconnect', () => {
-      setDialogMessage('Reconnected to server!');
-      setTimeout(() => setDialogMessage(null), 3000);
-    });
-
-    socket.io.on('reconnect_failed', () => {
-      setDialogMessage('Failed to reconnect. Please refresh the page.');
-    });
-  }, [user]);
-
-  // Handle Socket.IO events
+  // Initialize socket connection when user is authenticated
   useEffect(() => {
-    // Only initialize socket if user is authenticated
-    if (isAuthenticated) {
-      // Initialize socket connection
-      initializeSocket();
+    if (isAuthenticated && user && user.sub) {
+      // Set playerId in socket query
+      socket.io.opts.query = { playerId: user.sub };
+
+      // Connect to the server if not already connected
+      if (!socket.connected) {
+        socket.connect();
+      }
+
+      // Handle Socket.IO events
       socket.on('connect', () => {
         console.log('Connected to server at', SERVER_URL, 'with socket ID:', socket.id);
       });
@@ -220,22 +189,16 @@ function App() {
         console.log('Host Player:', data.player.playerName);
         console.log('Status: Waiting for opponent');
         console.log('================================');
-        console.log('Share this Room ID with your opponent to start playing!');
-
         setDialogMessage(
           `Room ${data.roomId} created successfully. Share this Room ID with your opponent to start playing!`
         );
         setRoomId(data.roomId);
         setPlayerRole('player1');
-
-        // Force a re-render of the RoomInfoBox component
-        setTimeout(() => {
-          setRoomId((prev) => prev);
-        }, 100);
+        console.log('State after roomCreated:', { roomId: data.roomId, playerRole: 'player1', gameState });
       });
 
-      socket.on('playerJoined', (data: { player2: { id: string; name: string } }) => {
-        console.log('Player joined event received:', data);
+      socket.on('playerJoined', (data: { player2: { id: string; name: string; avatar: string } }) => {
+        console.log('Player joined event received for socket ID:', socket.id, 'data:', data);
         if (data && data.player2 && data.player2.name) {
           setDialogMessage(`${data.player2.name} has joined! Game starting...`);
         } else {
@@ -243,33 +206,45 @@ function App() {
         }
       });
 
-      socket.on('joinSuccess', (id: string) => {
-        console.log('Join success event received:', id);
+      socket.on('joinSuccess', (data: { roomId: string; player1: { id: string; name: string; avatar: string } }) => {
+        console.log('Join success event received for socket ID:', socket.id, 'data:', data);
         setDialogMessage('Successfully joined the room. Game will start soon...');
-        setRoomId(id);
+        setRoomId(data.roomId);
         setPlayerRole('player2');
-        // Force a re-render to ensure gameState is checked after joinSuccess
-        setTimeout(() => {
-          setRoomId((prev) => prev);
-        }, 100);
+        console.log('State after joinSuccess:', { roomId: data.roomId, playerRole: 'player2', gameState });
+      });
+
+      socket.on('gameStarted', (data: { player1: { name: string; avatar: string }; player2: { name: string; avatar: string } }) => {
+        console.log('Game started event received for socket ID:', socket.id, 'data:', data);
+        setDialogMessage('Game has started!');
+      });
+
+      socket.on('updateOpponentInfo', (opponentData: { name: string; avatar: string }) => {
+        console.log('Updating opponent info for socket ID:', socket.id, 'opponentData:', opponentData);
+        setOpponentInfo(opponentData);
       });
 
       socket.on(
         'gameStateUpdated',
-        (data: { gameState: GameState; playerRole?: 'player1' | 'player2'; players?: { player1: any; player2: any } }) => {
+        (data: { gameState: GameState; playerRole?: 'player1' | 'player2' }) => {
           console.log('Game state updated received for socket ID:', socket.id, 'data:', data);
+          
+          // Always set playerRole if provided
           if (data.playerRole) {
+            console.log(`Setting playerRole to ${data.playerRole} from gameStateUpdated event`);
             setPlayerRole(data.playerRole);
           }
+          
+          // Always update game state when received
           if (data.gameState) {
+            console.log('Setting gameState:', data.gameState);
             setGameState(data.gameState);
             if (data.gameState.gameStatus === 'finished') {
               const winner = data.gameState.players.player.energy <= 0 ? 'opponent' : 'player';
               const winnerName =
                 data.gameState.winner?.name ||
-                (winner === 'player' ? currentPlayerInfo.name : currentOpponentInfo.name);
+                (winner === 'player' ? playerInfo.name : opponentInfo.name);
               setDialogMessage(`Game Over! ${winnerName} wins!`);
-              // Emit gameEnded event to the server
               if (roomId && user) {
                 socket.emit('gameEnded', {
                   roomId,
@@ -285,50 +260,61 @@ function App() {
             } else {
               setDialogMessage(null);
             }
+          } else {
+            console.error('gameStateUpdated received with no gameState:', data);
           }
+          console.log('State after gameStateUpdated:', { roomId, playerRole, gameState: data.gameState });
         }
       );
 
       socket.on('error', (msg: string) => {
-        console.log('Error received:', msg);
+        console.log('Error received for socket ID:', socket.id, 'message:', msg);
         setDialogMessage(`Failed to connect: ${msg}. Please try again.`);
-        if (msg.includes('Room does not exist') || msg.includes('Room is full')) {
+        if (msg.includes('Room does not exist') || msg.includes('Room is full') || msg.includes('Player 1 is disconnected')) {
           setRoomId(null);
           setPlayerRole(null);
           setGameState(null);
+          setOpponentInfo({ name: 'Waiting...', avatar: OpponentProfile });
         }
       });
 
       socket.on('playerDisconnected', () => {
-        console.log('Player disconnected');
+        console.log('Player disconnected event received for socket ID:', socket.id);
         setDialogMessage('Opponent disconnected. Game ended.');
         setRoomId(null);
         setPlayerRole(null);
         setGameState(null);
+        setOpponentInfo({ name: 'Waiting...', avatar: OpponentProfile });
       });
 
       socket.on('connect_error', (error) => {
-        console.log('Connection error:', error.message);
+        console.log('Connection error for socket ID:', socket.id, 'error:', error.message);
         setDialogMessage(`Connection failed: ${error.message}. Please try again or check network.`);
-        socket.disconnect();
         setRoomId(null);
         setPlayerRole(null);
         setGameState(null);
+        setOpponentInfo({ name: 'Waiting...', avatar: OpponentProfile });
       });
 
-      // Cleanup listeners on unmount or when auth state changes
+      // Cleanup on unmount
       return () => {
         socket.off('connect');
         socket.off('roomCreated');
         socket.off('joinSuccess');
+        socket.off('playerJoined');
+        socket.off('updateOpponentInfo');
         socket.off('gameStateUpdated');
         socket.off('error');
         socket.off('playerDisconnected');
         socket.off('connect_error');
         socket.offAny();
+        socket.disconnect();
       };
+    } else {
+      // Disconnect socket if not authenticated
+      socket.disconnect();
     }
-  }, [initializeSocket, isAuthenticated]);
+  }, [isAuthenticated, user]); // Only depend on isAuthenticated and user
 
   // Handle player card play
   const handleCardPlay = (card: CardType) => {
@@ -356,11 +342,6 @@ function App() {
     });
   }, []);
 
-  // Render login screen if not authenticated
-  if (!isAuthenticated && !authLoading) {
-    return <LoginScreen />;
-  }
-
   // Create a new game room
   const createRoom = () => {
     if (!isAuthenticated || !user?.sub || !user?.name) {
@@ -380,14 +361,14 @@ function App() {
     socket.emit('joinRoom', { roomId: joinRoomInput, playerData: { playerId: user?.sub, playerName: user?.name } });
   };
 
+  // Render login screen if not authenticated
+  if (!isAuthenticated && !authLoading) {
+    return <LoginScreen />;
+  }
+
   // If auth is still loading, show a loading indicator
   if (authLoading) {
     return <div className="loading">Loading...</div>;
-  }
-
-  // If user is not authenticated, show login screen
-  if (!isAuthenticated) {
-    return <LoginScreen />;
   }
 
   // If game is over, show game over screen
@@ -410,8 +391,8 @@ function App() {
     return (
       <GameOver
         winner={winner}
-        playerInfo={currentPlayerInfo}
-        opponentInfo={currentOpponentInfo}
+        playerInfo={playerInfo}
+        opponentInfo={opponentInfo}
         killCount={gameState.killCount}
         playerEnergy={playerEnergy}
         opponentEnergy={opponentEnergy}
@@ -419,13 +400,15 @@ function App() {
           setGameState(null);
           setRoomId(null);
           setPlayerRole(null);
+          setOpponentInfo({ name: 'Waiting...', avatar: OpponentProfile });
         }}
       />
     );
   }
 
   // If game is in progress, show game board
-  if (gameState && roomId) {
+  if (gameState && roomId && playerRole) {
+    console.log('Rendering GameBoard with gameState:', gameState, 'roomId:', roomId, 'playerRole:', playerRole);
     return (
       <DndProvider backend={HTML5Backend}>
         <div className="game-container">
@@ -434,18 +417,19 @@ function App() {
             onSignOut={() => {
               socket.emit('logout', user?.sub);
               signOut();
+              setOpponentInfo({ name: 'Waiting...', avatar: OpponentProfile });
             }}
           />
           <GameBoard
             gameState={gameState}
             onCardPlay={handleCardPlay}
             setGameState={setGameState}
-            playerInfo={currentPlayerInfo}
-            opponentInfo={currentOpponentInfo}
+            playerInfo={playerInfo}
+            opponentInfo={opponentInfo}
             combatLog={gameState.combatLog}
             addCombatLogEntry={addCombatLogEntry}
             killCount={gameState.killCount}
-            playerRole={playerRole || 'player1'}
+            playerRole={playerRole}
             roomId={roomId}
             socket={socket}
             onCardDefeated={(defeatedPlayerKey) => handleCardDefeated(defeatedPlayerKey)}
@@ -466,6 +450,7 @@ function App() {
           onSignOut={() => {
             socket.emit('logout', user?.sub);
             signOut();
+            setOpponentInfo({ name: 'Waiting...', avatar: OpponentProfile });
           }}
         />
       </div>

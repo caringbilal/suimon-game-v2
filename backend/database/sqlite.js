@@ -1,4 +1,4 @@
-import sqlite3 from 'sqlite3'; // Updated to ESM
+import sqlite3 from 'sqlite3';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -6,7 +6,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const dbPath = path.resolve(__dirname, 'suimon.sqlite');
-const db = new sqlite3.Database(dbPath, (err) => {
+
+const sqlite = sqlite3.verbose();
+
+const db = new sqlite.Database(dbPath, (err) => {
   if (err) {
     console.error('Error opening database:', err.message);
   } else {
@@ -23,13 +26,67 @@ const initializeDatabase = async () => {
       });
     });
 
+    // Create players table with wins and losses columns
     await new Promise((resolve, reject) => {
       db.run(
         `CREATE TABLE IF NOT EXISTS players (
           playerId TEXT PRIMARY KEY,
           playerName TEXT NOT NULL,
           createdAt INTEGER NOT NULL,
-          updatedAt INTEGER NOT NULL
+          updatedAt INTEGER NOT NULL,
+          wins INTEGER DEFAULT 0,
+          losses INTEGER DEFAULT 0
+        )`,
+        (err) => {
+          if (err) reject(err);
+          else resolve();
+        }
+      );
+    });
+
+    // Add wins column if it doesn't exist
+    await new Promise((resolve, reject) => {
+      db.run(
+        `ALTER TABLE players ADD COLUMN wins INTEGER DEFAULT 0`,
+        (err) => {
+          if (err && !err.message.includes('duplicate column name')) {
+            reject(err);
+          } else {
+            resolve();
+          }
+        }
+      );
+    });
+
+    // Add losses column if it doesn't exist
+    await new Promise((resolve, reject) => {
+      db.run(
+        `ALTER TABLE players ADD COLUMN losses INTEGER DEFAULT 0`,
+        (err) => {
+          if (err && !err.message.includes('duplicate column name')) {
+            reject(err);
+          } else {
+            resolve();
+          }
+        }
+      );
+    });
+
+    // Create games table
+    await new Promise((resolve, reject) => {
+      db.run(
+        `CREATE TABLE IF NOT EXISTS games (
+          gameId TEXT PRIMARY KEY,
+          player1Id TEXT NOT NULL,
+          player2Id TEXT,
+          gameState TEXT NOT NULL,
+          startTime INTEGER NOT NULL,
+          winner TEXT,
+          winnerName TEXT,
+          status TEXT,
+          hands TEXT,
+          FOREIGN KEY (player1Id) REFERENCES players(playerId),
+          FOREIGN KEY (player2Id) REFERENCES players(playerId)
         )`,
         (err) => {
           if (err) reject(err);
@@ -40,17 +97,43 @@ const initializeDatabase = async () => {
 
     await new Promise((resolve, reject) => {
       db.run(
-        `CREATE TABLE IF NOT EXISTS games (
-          gameId TEXT PRIMARY KEY,
-          player1Id TEXT NOT NULL,
-          player2Id TEXT NOT NULL,
-          gameState TEXT NOT NULL,
-          startTime INTEGER NOT NULL,
-          winner TEXT,
-          winnerName TEXT,
-          FOREIGN KEY (player1Id) REFERENCES players(playerId),
-          FOREIGN KEY (player2Id) REFERENCES players(playerId)
-        )`,
+        `ALTER TABLE games ADD COLUMN status TEXT`,
+        (err) => {
+          if (err && !err.message.includes('duplicate column name')) {
+            reject(err);
+          } else {
+            resolve();
+          }
+        }
+      );
+    });
+
+    await new Promise((resolve, reject) => {
+      db.run(
+        `ALTER TABLE games ADD COLUMN hands TEXT`,
+        (err) => {
+          if (err && !err.message.includes('duplicate column name')) {
+            reject(err);
+          } else {
+            resolve();
+          }
+        }
+      );
+    });
+
+    await new Promise((resolve, reject) => {
+      db.run(
+        `UPDATE games SET status = 'finished' WHERE status IS NULL AND winner IS NOT NULL`,
+        (err) => {
+          if (err) reject(err);
+          else resolve();
+        }
+      );
+    });
+
+    await new Promise((resolve, reject) => {
+      db.run(
+        `UPDATE games SET status = 'abandoned' WHERE status IS NULL AND winner IS NULL`,
         (err) => {
           if (err) reject(err);
           else resolve();
@@ -64,6 +147,11 @@ const initializeDatabase = async () => {
     throw error;
   }
 };
+
+initializeDatabase().catch((err) => {
+  console.error('Failed to initialize database on startup:', err);
+  process.exit(1);
+});
 
 const getPlayerByGoogleId = async (googleId) => {
   return new Promise((resolve, reject) => {
@@ -81,13 +169,13 @@ const createPlayer = async (playerData) => {
   const { playerId, playerName } = playerData;
   return new Promise((resolve, reject) => {
     db.run(
-      'INSERT INTO players (playerId, playerName, createdAt, updatedAt) VALUES (?, ?, ?, ?)',
-      [playerId, playerName, Date.now(), Date.now()],
+      'INSERT INTO players (playerId, playerName, createdAt, updatedAt, wins, losses) VALUES (?, ?, ?, ?, ?, ?)',
+      [playerId, playerName, Date.now(), Date.now(), 0, 0],
       function (err) {
         if (err) {
           reject(err);
         } else {
-          resolve({ playerId, playerName, createdAt: Date.now(), updatedAt: Date.now() });
+          resolve({ playerId, playerName, createdAt: Date.now(), updatedAt: Date.now(), wins: 0, losses: 0 });
         }
       }
     );
@@ -183,8 +271,9 @@ const logoutPlayer = async (playerId) => {
   });
 };
 
-export default {
-  db,
+export default db;
+
+export {
   initializeDatabase,
   getPlayerByGoogleId,
   createPlayer,
@@ -193,5 +282,5 @@ export default {
   getAllGames,
   updateGameState,
   updateGameWinner,
-  logoutPlayer
+  logoutPlayer,
 };

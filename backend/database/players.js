@@ -1,74 +1,80 @@
-import db from './sqlite.js'; // Updated to ESM
+import db, { getPlayer } from './sqlite.js';
 
-export const createPlayer = async (playerData) => {
-  const { playerId, playerName } = playerData;
+// Update player stats (wins and losses)
+export const updatePlayerStats = async (playerId, winsToAdd, lossesToAdd) => {
   return new Promise((resolve, reject) => {
-    db.db.run(
-      'INSERT INTO players (playerId, playerName, createdAt, updatedAt) VALUES (?, ?, ?, ?)',
-      [playerId, playerName, Date.now(), Date.now()],
+    db.run(
+      'UPDATE players SET wins = wins + ?, losses = losses + ?, updatedAt = ? WHERE playerId = ?',
+      [winsToAdd, lossesToAdd, Date.now(), playerId],
       function (err) {
         if (err) {
+          console.error('Error updating player stats:', err);
           reject(err);
         } else {
-          resolve({ playerId, playerName, createdAt: Date.now(), updatedAt: Date.now() });
+          console.log(`Updated stats for player ${playerId}: +${winsToAdd} wins, +${lossesToAdd} losses`);
+          resolve();
         }
       }
     );
   });
 };
 
-export const getPlayer = async (playerId) => {
+// Get player statistics
+export const getPlayerStats = async (playerId) => {
   return new Promise((resolve, reject) => {
-    db.db.get('SELECT * FROM players WHERE playerId = ?', [playerId], (err, row) => {
+    db.get(
+      'SELECT playerId, playerName, createdAt, wins, losses FROM players WHERE playerId = ?',
+      [playerId],
+      (err, row) => {
+        if (err) {
+          console.error('Error fetching player stats:', err);
+          reject(err);
+        } else if (!row) {
+          reject(new Error(`Player ${playerId} not found`));
+        } else {
+          const totalGames = row.wins + row.losses;
+          const winRate = totalGames > 0 ? (row.wins / totalGames) * 100 : 0;
+          resolve({
+            playerId: row.playerId,
+            playerName: row.playerName,
+            createdAt: row.createdAt,
+            totalGames,
+            wins: row.wins,
+            losses: row.losses,
+            winRate: winRate.toFixed(1),
+          });
+        }
+      }
+    );
+  });
+};
+
+// Get all players with their statistics
+export const getAllPlayerStats = async () => {
+  return new Promise((resolve, reject) => {
+    db.all('SELECT playerId, playerName, createdAt, wins, losses FROM players', [], (err, rows) => {
       if (err) {
+        console.error('Error fetching all player stats:', err);
         reject(err);
       } else {
-        resolve(row);
+        const stats = rows.map((row) => {
+          const totalGames = row.wins + row.losses;
+          const winRate = totalGames > 0 ? (row.wins / totalGames) * 100 : 0;
+          return {
+            playerId: row.playerId,
+            playerName: row.playerName,
+            createdAt: row.createdAt,
+            totalGames,
+            wins: row.wins,
+            losses: row.losses,
+            winRate: winRate.toFixed(1),
+          };
+        });
+        resolve(stats);
       }
     });
   });
 };
 
-export const getPlayerStats = async (playerId) => {
-  try {
-    const gamesAsPlayer1 = await new Promise((resolve, reject) => {
-      db.db.all('SELECT * FROM games WHERE player1Id = ?', [playerId], (err, rows) => {
-        if (err) reject(err);
-        resolve(rows);
-      });
-    });
-
-    const gamesAsPlayer2 = await new Promise((resolve, reject) => {
-      db.db.all('SELECT * FROM games WHERE player2Id = ?', [playerId], (err, rows) => {
-        if (err) reject(err);
-        resolve(rows);
-      });
-    });
-
-    const allGames = [...gamesAsPlayer1, ...gamesAsPlayer2];
-    const totalGames = allGames.length;
-
-    let wins = 0;
-    allGames.forEach(game => {
-      if (game.winner === 'player' && game.player1Id === playerId) {
-        wins++;
-      } else if (game.winner === 'opponent' && game.player2Id === playerId) {
-        wins++;
-      }
-    });
-
-    const losses = totalGames - wins;
-    const winRate = totalGames > 0 ? ((wins / totalGames) * 100).toFixed(2) : '0.00';
-
-    return { totalGames, wins, losses, winRate };
-  } catch (error) {
-    console.error('Error fetching player stats:', error);
-    throw error;
-  }
-};
-
-export const updatePlayerStats = async (playerId, wins, losses) => {
-  // Since stats are calculated dynamically in getPlayerStats, this can be a no-op
-  // If you want to store stats in the database, you can add a stats table and update it here
-  return Promise.resolve();
-};
+// Re-export getPlayer from sqlite.js
+export { getPlayer };

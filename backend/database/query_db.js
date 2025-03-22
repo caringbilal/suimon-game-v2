@@ -8,22 +8,22 @@ const db = new sqlite3.Database(dbPath);
 // Query and display players table
 console.log('\nPlayers Table:\n');
 db.all('SELECT * FROM players', [], (err, rows) => {
+  if (err) {
+    console.error('Error querying players:', err);
+  } else {
+    console.log(rows);
+  }
+
+  // Query and display games table
+  console.log('\nGames Table:\n');
+  db.all('SELECT * FROM games', [], (err, rows) => {
     if (err) {
-        console.error('Error querying players:', err);
+      console.error('Error querying games:', err);
     } else {
-        console.log(rows);
+      console.log(rows);
     }
-    
-    // Query and display games table
-    console.log('\nGames Table:\n');
-    db.all('SELECT * FROM games', [], (err, rows) => {
-        if (err) {
-            console.error('Error querying games:', err);
-        } else {
-            console.log(rows);
-        }
-        
-        // Close the database connection
-        db.close();
-    });
+
+    // Close the database connection
+    db.close();
+  });
 });
