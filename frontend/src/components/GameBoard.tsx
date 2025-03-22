@@ -326,12 +326,33 @@ export default React.memo<GameBoardProps>(
     }
 
     // Validate and fix card image URL
-    const validateCardImageUrl = (card: CardType): CardType => {
+    const validateCardImageUrl = (card: CardType, isOpponentCard: boolean = false): CardType => {
+      if (!card || !card.id) {
+        console.warn('Invalid card object received in validateCardImageUrl');
+        return card;
+      }
+      
+      // If it's an opponent's card, always show card back with hidden stats
+      if (isOpponentCard) {
+        return { 
+          ...card,
+          imageUrl: cardBackMonster,
+          name: 'Hidden Card',
+          // Hide actual stats by setting them to placeholder values
+          attack: 0,
+          defense: 0,
+          hp: 0,
+          maxHp: 1 // To avoid division by zero in health percentage calculation
+        };
+      }
+      
+      // For player's cards, show actual card
       const expectedImageUrl = `/monsters/${card.id}.png`;
-      if (!card.imageUrl || card.imageUrl === '/monsters/card-back.png' || card.name.includes('Hidden Card')) {
-        console.warn(`Invalid imageUrl or name for card ${card.id}. Setting to expected path: ${expectedImageUrl}`);
+      if (!card.imageUrl || card.imageUrl === cardBackMonster || card.name.includes('Hidden Card')) {
+        console.log(`Showing actual card for ${card.id}. Setting to: ${expectedImageUrl}`);
         return { ...card, imageUrl: expectedImageUrl, name: card.id };
       }
+      
       return card;
     };
 
@@ -350,9 +371,9 @@ export default React.memo<GameBoardProps>(
             </p>
             <p>
               Game Status:
-              <span className={gameState.gameStatus}>
-                {gameState.gameStatus.charAt(0).toUpperCase() + gameState.gameStatus.slice(1)}
-                <span className={`status-dot ${gameState.gameStatus}`}></span>
+              <span className={gameState.gameStatus || ''}>
+                {gameState.gameStatus ? gameState.gameStatus.charAt(0).toUpperCase() + gameState.gameStatus.slice(1) : 'Unknown'}
+                <span className={`status-dot ${gameState.gameStatus || ''}`}></span>
               </span>
             </p>
             <button
@@ -453,26 +474,33 @@ export default React.memo<GameBoardProps>(
             </span>
           </div>
           <div className="player-hand opponent-hand">
-            {gameState.players[opponentKey].hand.map((card: CardType, index: number) => (
-              <div key={`opponent-card-${index}`} className="card card-back">
-                <img
-                  src={cardBackMonster}
-                  alt="Card Back"
-                  className="card-back-image"
+            {gameState.players[opponentKey].hand.map((card: CardType, index: number) => {
+              // Always show opponent's hand as card backs
+              const updatedCard = validateCardImageUrl(card, true);
+              console.log('Rendering opponent hand card:', updatedCard);
+              return (
+                <Card
+                  key={`opponent-card-${index}`}
+                  card={updatedCard}
                   onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-                    console.error('Failed to load card back image');
-                    e.currentTarget.src = cardBack;
+                    console.error(`Failed to load image for opponent hand card ${index}: ${updatedCard.imageUrl}`);
+                    e.currentTarget.src = cardBackMonster;
                   }}
                 />
-                <div className="card-back-overlay"></div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
         <div className="battlefield">
           <div className="opponent-field">
             {gameState.battlefield[opponentKey].map((card: CardType) => {
-              const updatedCard = validateCardImageUrl(card);
+              // For battlefield cards, we show the opponent's cards with their stats visible
+              // but with the card back image
+              const updatedCard = {
+                ...card,
+                imageUrl: cardBackMonster,
+                name: card.name || card.id
+              };
               console.log('Rendering opponent battlefield card:', updatedCard);
               return (
                 <Card
@@ -493,7 +521,7 @@ export default React.memo<GameBoardProps>(
           </div>
           <div ref={dropRef as unknown as React.RefObject<HTMLDivElement>} className={`player-field ${isOver ? 'field-highlight' : ''}`}>
             {gameState.battlefield[playerKey].map((card: CardType) => {
-              const updatedCard = validateCardImageUrl(card);
+              const updatedCard = validateCardImageUrl(card, false);
               console.log('Rendering player battlefield card:', updatedCard);
               return (
                 <Card
@@ -526,7 +554,7 @@ export default React.memo<GameBoardProps>(
           <div className="player-hand">
             {gameState.players[playerKey].hand.length > 0 ? (
               gameState.players[playerKey].hand.map((card: CardType) => {
-                const updatedCard = validateCardImageUrl(card);
+                const updatedCard = validateCardImageUrl(card, false);
                 console.log('Rendering player hand card:', updatedCard);
                 return (
                   <Card

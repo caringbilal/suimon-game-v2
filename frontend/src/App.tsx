@@ -167,18 +167,41 @@ function App() {
     }
   }, [isAuthenticated, user]);
 
-  // Initialize socket connection when user is authenticated
-  useEffect(() => {
-    if (isAuthenticated && user && user.sub) {
-      // Set playerId in socket query
+  // Initialize socket connection and handle reconnection
+  const initializeSocket = useCallback(() => {
+    if (socket.connected) {
+      socket.disconnect();
+    }
+
+    if (user && user.sub) {
       socket.io.opts.query = { playerId: user.sub };
+    }
 
-      // Connect to the server if not already connected
-      if (!socket.connected) {
-        socket.connect();
+    socket.connect();
+    socket.io.on('reconnect_attempt', () => {
+      setDialogMessage('Attempting to reconnect...');
+    });
+
+    socket.io.on('reconnect', () => {
+      setDialogMessage('Reconnected to server!');
+      setTimeout(() => setDialogMessage(null), 3000);
+      // Rejoin the room if it still exists
+      if (roomId) {
+        socket.emit('reconnect', { playerId: user?.sub, roomId });
+        socket.emit('joinRoom', { roomId, playerData: { playerId: user?.sub, playerName: user?.name } });
       }
+    });
 
-      // Handle Socket.IO events
+    socket.io.on('reconnect_failed', () => {
+      setDialogMessage('Failed to reconnect. Please refresh the page.');
+    });
+  }, [user, roomId]);
+
+  // Handle Socket.IO events
+  useEffect(() => {
+    if (isAuthenticated) {
+      initializeSocket();
+
       socket.on('connect', () => {
         console.log('Connected to server at', SERVER_URL, 'with socket ID:', socket.id);
       });

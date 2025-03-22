@@ -1,6 +1,6 @@
 import { updatePlayerStats, getPlayer } from '../database/players.js';
 import { saveGame, updateGame, createGame, getGame, getAllGames } from '../database/games.js';
-import db, { updateGameWinner } from '../database/sqlite.js'; // Updated import
+import db, { updateGameWinner } from '../database/sqlite.js';
 
 // Store active game rooms (in-memory for quick access)
 const activeRooms = new Map();
@@ -135,11 +135,20 @@ export default (io) => {
 
         // Check if Player 1 is disconnected
         if (!room.player1.socket) {
-          console.warn(`Player 1 is disconnected for room ${roomId}. Ending game.`);
-          socket.emit('error', 'Player 1 is disconnected. The game has ended.');
-          activeRooms.delete(roomId);
-          await updateGame(roomId, { status: 'abandoned' });
-          return;
+          console.warn(`Player 1 is disconnected for room ${roomId}. Attempting to reconnect.`);
+          // Instead of ending the game, we'll update the player1 socket with the latest socket ID from the database
+          const player1 = await getPlayer(room.player1.id);
+          if (player1) {
+            console.log(`Updating Player 1 socket for room ${roomId}`);
+            room.player1.socket = socket.id;
+            // Don't return here, allow the join to proceed
+          } else {
+            console.warn(`Player 1 not found in database for room ${roomId}. Ending game.`);
+            socket.emit('error', 'Player 1 is disconnected. The game has ended.');
+            activeRooms.delete(roomId);
+            await updateGame(roomId, { status: 'abandoned' });
+            return;
+          }
         }
 
         room.player2 = {
@@ -232,9 +241,14 @@ export default (io) => {
           killCount: { player: 0, opponent: 0 },
         };
 
+        // Log the image URLs for debugging
+        console.log('Player 1 Hand Image URLs:', player1Hand.map(card => `/monsters/${card.id}.png`));
+        console.log('Player 2 Hand Image URLs:', player2Hand.map(card => `/monsters/${card.id}.png`));
+
         // Create perspective-based states for each player
         const player1GameState = {
           ...sharedGameState,
+          gameStatus: 'playing', // Ensure gameStatus is set
           players: {
             player: sharedGameState.players.player,
             opponent: {
@@ -254,9 +268,19 @@ export default (io) => {
 
         const player2GameState = {
           ...sharedGameState,
+          gameStatus: 'playing', // Ensure gameStatus is set
           currentTurn: 'opponent', // Player 2's perspective
           players: {
-            player: sharedGameState.players.opponent,
+            player: {
+              ...sharedGameState.players.opponent,
+              hand: player2Hand.map((card) => ({
+                ...card,
+                hp: card.maxHp,
+                id: `${card.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                imageUrl: `/monsters/${card.id}.png`,
+                name: card.id,
+              })),
+            },
             opponent: {
               ...sharedGameState.players.player,
               hand: player1Hand.map((_, index) => ({
@@ -271,6 +295,10 @@ export default (io) => {
             },
           },
         };
+
+        // Log the image URLs in the game state for both players
+        console.log('Player 1 Game State Hand Image URLs:', player1GameState.players.player.hand.map(card => card.imageUrl));
+        console.log('Player 2 Game State Hand Image URLs:', player2GameState.players.player.hand.map(card => card.imageUrl));
 
         // Store game state in the room
         room.gameState = {
@@ -355,8 +383,8 @@ export default (io) => {
         // Update the shared game state
         room.gameState.shared = {
           ...room.gameState.shared,
+          gameStatus: gameState.gameStatus || 'playing', // Ensure gameStatus is set
           currentTurn: gameState.currentTurn,
-          gameStatus: gameState.gameStatus,
           battlefield: gameState.battlefield,
           combatLog: gameState.combatLog,
           killCount: gameState.killCount,
@@ -372,6 +400,7 @@ export default (io) => {
 
         room.gameState.player1 = {
           ...room.gameState.player1,
+          gameStatus: gameState.gameStatus || 'playing', // Ensure gameStatus is set
           currentTurn: player1Turn,
           battlefield: gameState.battlefield,
           combatLog: gameState.combatLog,
@@ -395,6 +424,7 @@ export default (io) => {
 
         room.gameState.player2 = {
           ...room.gameState.player2,
+          gameStatus: gameState.gameStatus || 'playing', // Ensure gameStatus is set
           currentTurn: player2Turn,
           battlefield: {
             player: gameState.battlefield.opponent,
@@ -465,7 +495,7 @@ export default (io) => {
         await updateGame(roomId, {
           gameState: JSON.stringify(room.gameState.shared),
           hands: room.gameState.hands,
-          status: gameState.gameStatus,
+          status: gameState.gameStatus || 'playing',
         });
 
         // Check for game end conditions
@@ -719,6 +749,7 @@ export default (io) => {
         // Create perspective-based states for each player
         const player1GameState = {
           ...sharedGameState,
+          gameStatus: 'playing', // Ensure gameStatus is set
           players: {
             player: sharedGameState.players.player,
             opponent: {
@@ -738,9 +769,19 @@ export default (io) => {
 
         const player2GameState = {
           ...sharedGameState,
+          gameStatus: 'playing', // Ensure gameStatus is set
           currentTurn: 'opponent', // Player 2's perspective
           players: {
-            player: sharedGameState.players.opponent,
+            player: {
+              ...sharedGameState.players.opponent,
+              hand: player2Hand.map((card) => ({
+                ...card,
+                hp: card.maxHp,
+                id: `${card.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                imageUrl: `/monsters/${card.id}.png`,
+                name: card.id,
+              })),
+            },
             opponent: {
               ...sharedGameState.players.player,
               hand: player1Hand.map((_, index) => ({

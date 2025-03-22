@@ -38,8 +38,8 @@ const Card: React.FC<CardProps> = ({ card, onClick, isAttacking, isDefending, on
       </div>
       <div className="card-image">
         <img
-          src={card.imageUrl.startsWith('/') ? `${process.env.PUBLIC_URL}${card.imageUrl}` : card.imageUrl}
-          alt={card.name}
+          src={card.imageUrl ? (card.imageUrl.startsWith('/') ? `${process.env.PUBLIC_URL}${card.imageUrl}` : card.imageUrl) : ''}
+          alt={card.name || 'Card'}
           onError={onError} // Use the onError prop passed from GameBoard.tsx
         />
       </div>
