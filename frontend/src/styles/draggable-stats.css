@@ -1,0 +1,203 @@
+.draggable-stat-box {
+  position: absolute;
+  background: rgba(0, 0, 0, 0.95);
+  border-radius: 12px;
+  padding: 15px;
+  color: white;
+  z-index: 1000;
+  min-width: 280px;
+  box-shadow: 0 0 15px rgba(0, 255, 0, 0.3);
+  backdrop-filter: blur(8px);
+  cursor: move;
+  user-select: none;
+  transition: box-shadow 0.3s ease;
+}
+
+.draggable-stat-box:hover {
+  box-shadow: 0 0 25px rgba(0, 255, 0, 0.5);
+}
+
+.draggable-stat-box.current-turn {
+  border: 3px solid #4CAF50;
+  box-shadow: 0 0 25px rgba(0, 255, 0, 0.7);
+  animation: pulse-green 2s infinite alternate;
+}
+
+@keyframes pulse-green {
+  0% { box-shadow: 0 0 15px rgba(0, 255, 0, 0.5); }
+  100% { box-shadow: 0 0 30px rgba(0, 255, 0, 0.9); }
+}
+
+.draggable-stat-box.player {
+  border: 2px solid #4CAF50;
+  left: 20px;
+  top: 100px;
+}
+
+.draggable-stat-box.opponent {
+  border: 2px solid #f44336;
+  left: 20px;
+  top: 300px;
+}
+
+.draggable-stat-box.combat-stats {
+  border: 2px solid #ffffff;
+  left: 20px;
+  top: 500px;
+}
+
+.draggable-stat-box .profile-picture {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-right: 15px;
+  border: 2px solid #333;
+}
+
+.draggable-stat-box .stat-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.draggable-stat-box .stat-title {
+  font-size: 1.2em;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin: 0;
+  color: #fff;
+  text-shadow: 0 0 8px rgba(76, 175, 80, 0.6);
+}
+
+.draggable-stat-box.opponent .stat-title {
+  color: #fff;
+  text-shadow: 0 0 8px rgba(244, 67, 54, 0.6);
+}
+
+.draggable-stat-box .stat-value {
+  font-size: 2em;
+  font-weight: bold;
+  margin: 5px 0;
+  text-align: center;
+}
+
+.draggable-stat-box .hp-bar {
+  width: 100%;
+  height: 20px;
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  overflow: hidden;
+  margin-top: 10px;
+  position: relative;
+}
+
+.draggable-stat-box .hp-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4CAF50, #8BC34A);
+  border-radius: 10px;
+  transition: width 0.5s ease;
+}
+
+.draggable-stat-box.opponent .hp-fill {
+  background: linear-gradient(90deg, #f44336, #FF9800);
+}
+
+.draggable-stat-box .hp-bar span {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  text-align: center;
+  line-height: 20px;
+  font-size: 0.9em;
+  font-weight: bold;
+  color: white;
+  text-shadow: 0 0 3px rgba(0, 0, 0, 0.8);
+}
+
+.draggable-stat-box .drag-handle {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  font-size: 1.2em;
+  cursor: move;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.draggable-stat-box .drag-handle:hover {
+  color: white;
+}
+
+.draggable-stat-box .kill-stat {
+  margin-top: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 10px;
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 5px;
+}
+
+.draggable-stat-box .kill-label {
+  font-weight: bold;
+  color: #fff;
+}
+
+.draggable-stat-box .kill-value {
+  font-size: 1.2em;
+  font-weight: bold;
+  color: #4CAF50;
+}
+
+.draggable-stat-box.opponent .kill-value {
+  color: #f44336;
+}
+
+.draggable-stat-box.combat-stats {
+  border: 2px solid #9C27B0;
+  box-shadow: 0 0 15px rgba(156, 39, 176, 0.3);
+}
+
+.draggable-stat-box.combat-stats:hover {
+  box-shadow: 0 0 25px rgba(156, 39, 176, 0.5);
+}
+
+.draggable-stat-box.combat-stats .combat-stats-content {
+  max-height: 200px;
+  overflow-y: auto;
+  margin-top: 10px;
+  padding: 5px;
+  background-color: rgba(0, 0, 0, 0.3);
+  border-radius: 5px;
+}
+
+.draggable-stat-box.combat-stats .combat-log-entry {
+  padding: 5px;
+  margin-bottom: 5px;
+  border-radius: 3px;
+  font-size: 0.9em;
+}
+
+.draggable-stat-box.combat-stats .combat-log-entry.combat {
+  background-color: rgba(33, 150, 243, 0.2);
+  border-left: 3px solid #2196F3;
+}
+
+.draggable-stat-box.combat-stats .combat-log-entry.damage {
+  background-color: rgba(244, 67, 54, 0.2);
+  border-left: 3px solid #F44336;
+}
+
+.draggable-stat-box.combat-stats .combat-log-entry.death {
+  background-color: rgba(0, 0, 0, 0.3);
+  border-left: 3px solid #000;
+  color: #F44336;
+  font-weight: bold;
+}
+
+.draggable-stat-box.combat-stats .combat-log-entry.play {
+  background-color: rgba(76, 175, 80, 0.2);
+  border-left: 3px solid #4CAF50;
+}

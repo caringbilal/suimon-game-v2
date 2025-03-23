@@ -3,8 +3,11 @@ import { GameState, CardType } from '../types/game';
 import Card from '@components/Card';
 import cardBackMonster from '../assets/monsters/card-back.png';
 import GameEndDialog from '@components/GameEndDialog';
+import DraggableStatBox from '@components/DraggableStatBox';
+import DraggableCombatStats from '@components/DraggableCombatStats';
 import { useDrop } from 'react-dnd';
 import { Socket } from 'socket.io-client';
+import '../styles/draggable-stats.css';
 
 // Placeholder interface for GameEndDialog (update this if you have the actual component)
 interface GameEndDialogProps {
@@ -399,88 +402,47 @@ export default React.memo<GameBoardProps>(
             onRestart={handleRestart}
           />
         )}
-        <div className="game-stats-panel">
-          <div className="kill-counter">
-            <div className="kill-stat">
-              <span className="kill-label">Player Kills:</span>
-              <span className="kill-value">{playerRole === 'player1' ? killCount.player1 : killCount.player2}</span>
-            </div>
-            <div className="kill-stat">
-              <span className="kill-label">Opponent Kills:</span>
-              <span className="kill-value">{playerRole === 'player1' ? killCount.player2 : killCount.player1}</span>
-            </div>
-          </div>
-          <div className="health-summary-boxes">
-            <div className="health-summary opponent-summary">
-              <img src={opponentInfo.avatar} alt="Opponent" className="profile-picture" />
-              <div className="summary-content">
-                <div className="summary-title">OPPONENT CARDS TOTAL HP</div>
-                <div className="summary-value">
-                  {(() => {
-                    const battlefieldHP = gameState.battlefield[playerRole === 'player1' ? 'player2' : 'player1'].reduce(
-                      (total, card) => total + card.hp,
-                      0
-                    );
-                    const handHP = opponentData.hand.reduce((total, card) => total + card.hp, 0);
-                    console.log('Opponent Battlefield HP:', battlefieldHP, 'Opponent Hand HP:', handHP);
-                    console.log('Opponent Hand Cards:', opponentData.hand);
-                    return battlefieldHP + handHP;
-                  })()}
-                  <div className="hp-bar">
-                    <div
-                      className="hp-fill"
-                      style={{ width: `${(opponentData.energy / opponentData.maxHealth) * 100}%` }}
-                    />
-                    <span>{opponentData.energy} Energy</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="health-summary player-summary">
-              <img src={playerInfo.avatar} alt="Player" className="profile-picture" />
-              <div className="summary-content">
-                <div className="summary-title">PLAYER CARDS TOTAL HP</div>
-                <div className="summary-value">
-                  {(() => {
-                    const battlefieldHP = gameState.battlefield[playerRole].reduce((total, card) => total + card.hp, 0);
-                    const handHP = myData.hand.reduce((total, card) => total + card.hp, 0);
-                    console.log('Player Battlefield HP:', battlefieldHP, 'Player Hand HP:', handHP);
-                    console.log('Player Hand Cards:', myData.hand);
-                    return battlefieldHP + handHP;
-                  })()}
-                  <div className="hp-bar">
-                    <div
-                      className="hp-fill"
-                      style={{ width: `${(myData.energy / myData.maxHealth) * 100}%` }}
-                    />
-                    <span>{myData.energy} Energy</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
 
-        <div className="combat-stats-container">
-          <div className="combat-stats-display">
-            <div className="combat-stats-title">Combat Statistics</div>
-            <div className="total-cards-info">
-              <div className="player-cards-count">
-                Player Total Cards: {myData.hand.length + gameState.battlefield[playerRole].length}
-              </div>
-              <div className="opponent-cards-count">
-                Opponent Total Cards: {opponentData.hand.length + gameState.battlefield[playerRole === 'player1' ? 'player2' : 'player1'].length}
-              </div>
-            </div>
-            <div className="combat-stats-content">
-              {combatLog.slice(-5).map((entry, index) => (
-                <div key={index} className={`combat-log-entry ${entry.type}`}>
-                  {entry.message}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+        
+        {/* Draggable Stat Boxes */}
+        <DraggableStatBox
+          type="opponent"
+          title="OPPONENT CARDS TOTAL HP"
+          totalHP={(() => {
+            const battlefieldHP = gameState.battlefield[playerRole === 'player1' ? 'player2' : 'player1'].reduce(
+              (total, card) => total + card.hp,
+              0
+            );
+            const handHP = opponentData.hand.reduce((total, card) => total + card.hp, 0);
+            return battlefieldHP + handHP;
+          })()}
+          energy={opponentData.energy}
+          maxEnergy={opponentData.maxHealth}
+          avatar={opponentInfo.avatar}
+          kills={playerRole === 'player1' ? killCount.player2 : killCount.player1}
+        />
+        
+        <DraggableStatBox
+          type="player"
+          title="PLAYER CARDS TOTAL HP"
+          totalHP={(() => {
+            const battlefieldHP = gameState.battlefield[playerRole].reduce((total, card) => total + card.hp, 0);
+            const handHP = myData.hand.reduce((total, card) => total + card.hp, 0);
+            return battlefieldHP + handHP;
+          })()}
+          energy={myData.energy}
+          maxEnergy={myData.maxHealth}
+          avatar={playerInfo.avatar}
+          kills={playerRole === 'player1' ? killCount.player1 : killCount.player2}
+          isCurrentTurn={gameState.currentTurn === playerRole}
+        />
+
+        {/* Draggable Combat Stats */}
+        <DraggableCombatStats
+          combatLog={combatLog}
+          playerCardsCount={myData.hand.length + gameState.battlefield[playerRole].length}
+          opponentCardsCount={opponentData.hand.length + gameState.battlefield[playerRole === 'player1' ? 'player2' : 'player1'].length}
+        />
 
         <div className={`player-area opponent ${gameState.currentTurn === (playerRole === 'player1' ? 'player2' : 'player1') ? 'active-turn' : ''}`}>
           <div className="player-profile opponent-profile">

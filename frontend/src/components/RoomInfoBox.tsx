@@ -1,13 +1,15 @@
 import React from 'react';
+import LogoutButton from './LogoutButton';
 
 interface RoomInfoBoxProps {
   roomId: string;
   playerRole: 'player1' | 'player2' | null;
   gameState: any;
   onCopyRoomId: () => void;
+  onSignOut?: () => void;
 }
 
-const RoomInfoBox: React.FC<RoomInfoBoxProps> = ({ roomId, playerRole, gameState, onCopyRoomId }) => {
+const RoomInfoBox: React.FC<RoomInfoBoxProps> = ({ roomId, playerRole, gameState, onCopyRoomId, onSignOut }) => {
   const getStatusClass = () => {
     if (playerRole === 'player1') return 'host';
     if (!gameState) return 'waiting';
@@ -49,6 +51,9 @@ const RoomInfoBox: React.FC<RoomInfoBoxProps> = ({ roomId, playerRole, gameState
         <button className="copy-room-id" onClick={onCopyRoomId}>
           Copy Room ID
         </button>
+        {onSignOut && (
+          <LogoutButton className="room-info-logout" onSignOut={onSignOut} />
+        )}
       </div>
     </div>
   );

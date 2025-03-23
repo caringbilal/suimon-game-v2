@@ -442,14 +442,6 @@ function App() {
     return (
       <DndProvider backend={HTML5Backend}>
         <div className="game-container">
-          <LogoutButton
-            className="logout-button-game"
-            onSignOut={() => {
-              socket.emit('logout', user?.sub);
-              signOut();
-              setOpponentInfo({ name: 'Waiting...', avatar: OpponentProfile });
-            }}
-          />
           <GameBoard
             gameState={gameState}
             onCardPlay={handleCardPlay}
@@ -514,6 +506,11 @@ function App() {
             navigator.clipboard.writeText(roomId);
             setDialogMessage('Room ID copied to clipboard!');
             setTimeout(() => setDialogMessage(null), 2000);
+          }}
+          onSignOut={() => {
+            socket.emit('logout', user?.sub);
+            signOut();
+            setOpponentInfo({ name: 'Waiting...', avatar: OpponentProfile });
           }}
         />
       )}
