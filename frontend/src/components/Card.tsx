@@ -35,43 +35,62 @@ const Card: React.FC<CardProps> = ({ card, onClick, isAttacking, isDefending, on
     ? `${process.env.PUBLIC_URL}${card.imageUrl}`
     : card.imageUrl || '/monsters/default-card.png';
 
+  // Check if this is an opponent's hidden card (when name is 'Hidden Card')
+  const isOpponentHiddenCard = card.name === 'Hidden Card';
+
   return (
     <div
       ref={dragRef as unknown as React.LegacyRef<HTMLDivElement>}
-      className={`card ${isDragging ? 'card-dragging' : ''} ${isAttacking ? 'attacking' : ''} ${isDefending ? 'defending' : ''}`}
+      className={`card ${isDragging ? 'card-dragging' : ''} ${isAttacking ? 'attacking' : ''} ${isDefending ? 'defending' : ''} ${isOpponentHiddenCard ? 'opponent-card' : ''}`}
       style={{ opacity: isDragging ? 0.5 : 1 }}
       onClick={onClick}
       onAnimationEnd={onAnimationEnd}
     >
-      <div className="card-title">
-        {card.name || 'Unknown Card'}
-        <span className="health-percentage">{Math.round((card.hp / card.maxHp) * 100)}%</span>
-      </div>
-      <div className="card-image">
-        <img
-          src={imageUrl}
-          alt={card.name || 'Card'}
-          onError={(e) => {
-            console.error(`Failed to load image for card ${card.id}: ${imageUrl}`);
-            e.currentTarget.src = `${process.env.PUBLIC_URL}/monsters/card-back.png`; // Fallback image
-            if (onError) onError(e); // Call the passed onError handler
-          }}
-        />
-      </div>
-      <div className="card-stats">
-        <div className="stat">
-          <span className="stat-label">ATK</span>
-          <span className="stat-value">{card.attack || 0}</span>
+      {!isOpponentHiddenCard ? (
+        <>
+          <div className="card-title">
+            {card.name || 'Unknown Card'}
+            <span className="health-percentage">{Math.round((card.hp / card.maxHp) * 100)}%</span>
+          </div>
+          <div className="card-image">
+            <img
+              src={imageUrl}
+              alt={card.name || 'Card'}
+              onError={(e) => {
+                console.error(`Failed to load image for card ${card.id}: ${imageUrl}`);
+                e.currentTarget.src = `${process.env.PUBLIC_URL}/monsters/card-back.png`; // Fallback image
+                if (onError) onError(e); // Call the passed onError handler
+              }}
+            />
+          </div>
+          <div className="card-stats">
+            <div className="stat">
+              <span className="stat-label">ATK</span>
+              <span className="stat-value">{card.attack || 0}</span>
+            </div>
+            <div className="stat">
+              <span className="stat-label">DEF</span>
+              <span className="stat-value">{card.defense || 0}</span>
+            </div>
+            <div className="stat">
+              <span className="stat-label">HP</span>
+              <span className="stat-value">{card.hp || 0}</span>
+            </div>
+          </div>
+        </>
+      ) : (
+        <div className="card-image">
+          <img
+            src={imageUrl}
+            alt="Hidden Card"
+            onError={(e) => {
+              console.error(`Failed to load image for hidden card`);
+              e.currentTarget.src = `${process.env.PUBLIC_URL}/monsters/card-back.png`; // Fallback image
+              if (onError) onError(e); // Call the passed onError handler
+            }}
+          />
         </div>
-        <div className="stat">
-          <span className="stat-label">DEF</span>
-          <span className="stat-value">{card.defense || 0}</span>
-        </div>
-        <div className="stat">
-          <span className="stat-label">HP</span>
-          <span className="stat-value">{card.hp || 0}</span>
-        </div>
-      </div>
+      )}
     </div>
   );
 };

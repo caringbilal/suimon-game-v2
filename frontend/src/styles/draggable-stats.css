@@ -19,8 +19,19 @@
 
 .draggable-stat-box.current-turn {
   border: 3px solid #4CAF50;
+  border-radius: 20px;
   box-shadow: 0 0 25px rgba(0, 255, 0, 0.7);
   animation: pulse-green 2s infinite alternate;
+}
+
+.draggable-stat-box.current-turn .profile-picture {
+  border: 3px solid #4CAF50;
+  box-shadow: 0 0 15px rgba(0, 255, 0, 0.7);
+}
+
+.draggable-stat-box.opponent.current-turn .profile-picture {
+  border: 3px solid #f44336;
+  box-shadow: 0 0 15px rgba(244, 67, 54, 0.7);
 }
 
 @keyframes pulse-green {
@@ -34,14 +45,23 @@
   top: 100px;
 }
 
+.draggable-stat-box.player .profile-picture {
+  border-color: rgba(76, 175, 80, 0.7);
+}
+
 .draggable-stat-box.opponent {
   border: 2px solid #f44336;
   left: 20px;
   top: 300px;
 }
 
+.draggable-stat-box.opponent .profile-picture {
+  border-color: rgba(244, 67, 54, 0.7);
+}
+
 .draggable-stat-box.combat-stats {
   border: 2px solid #ffffff;
+  box-shadow: 0 0 15px rgba(255, 255, 255, 0.3);
   left: 20px;
   top: 500px;
 }
@@ -49,10 +69,11 @@
 .draggable-stat-box .profile-picture {
   width: 50px;
   height: 50px;
-  border-radius: 50%;
+  border-radius: 10px;
   object-fit: cover;
   margin-right: 15px;
   border: 2px solid #333;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 .draggable-stat-box .stat-header {
@@ -156,12 +177,12 @@
 }
 
 .draggable-stat-box.combat-stats {
-  border: 2px solid #9C27B0;
-  box-shadow: 0 0 15px rgba(156, 39, 176, 0.3);
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 15px rgba(255, 255, 255, 0.3);
 }
 
 .draggable-stat-box.combat-stats:hover {
-  box-shadow: 0 0 25px rgba(156, 39, 176, 0.5);
+  box-shadow: 0 0 25px rgba(255, 255, 255, 0.5);
 }
 
 .draggable-stat-box.combat-stats .combat-stats-content {

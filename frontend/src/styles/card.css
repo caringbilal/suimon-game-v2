@@ -14,11 +14,17 @@
   border: 2px solid #333;
 }
 
-.card-back {
+.card-back, .opponent-card {
   background-color: #2a2a2a;
   justify-content: center;
   align-items: center;
   overflow: hidden;
+}
+
+.opponent-card {
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .card-back-image {

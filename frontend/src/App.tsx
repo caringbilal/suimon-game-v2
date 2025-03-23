@@ -192,7 +192,7 @@ function App() {
       // Rejoin the room if it still exists
       if (roomId) {
         socket.emit('reconnect', { playerId: user?.sub, roomId });
-        socket.emit('joinRoom', { roomId, playerData: { playerId: user?.sub, playerName: user?.name } });
+        socket.emit('joinRoom', { roomId, playerData: { playerId: user?.sub, playerName: user?.name, avatar: user?.picture } });
       }
     });
 
@@ -455,6 +455,14 @@ function App() {
             roomId={roomId}
             socket={socket}
             onCardDefeated={(defeatedPlayerKey) => handleCardDefeated(defeatedPlayerKey)}
+            onSignOut={() => {
+              socket.emit('logout', user?.sub);
+              signOut();
+              setOpponentInfo({ name: 'Waiting...', avatar: OpponentProfile });
+              setGameState(null);
+              setRoomId(null);
+              setPlayerRole(null);
+            }}
           />
         </div>
       </DndProvider>
@@ -467,14 +475,6 @@ function App() {
       <div className="user-profile">
         <img src={user?.picture || PlayerProfile} alt="Profile" className="profile-image" />
         <h2>Welcome, {user?.name || 'Player'}!</h2>
-        <LogoutButton
-          className="logout-button-lobby"
-          onSignOut={() => {
-            socket.emit('logout', user?.sub);
-            signOut();
-            setOpponentInfo({ name: 'Waiting...', avatar: OpponentProfile });
-          }}
-        />
       </div>
 
       <h1>Suimon Card Game</h1>

@@ -8,6 +8,7 @@ import DraggableCombatStats from '@components/DraggableCombatStats';
 import { useDrop } from 'react-dnd';
 import { Socket } from 'socket.io-client';
 import '../styles/draggable-stats.css';
+import LogoutButton from './LogoutButton';
 
 // Placeholder interface for GameEndDialog (update this if you have the actual component)
 interface GameEndDialogProps {
@@ -34,6 +35,7 @@ interface GameBoardProps {
   roomId: string;
   socket: Socket;
   onCardDefeated?: (defeatedPlayerKey: 'player1' | 'player2') => void;
+  onSignOut?: () => void;
 }
 
 export default React.memo<GameBoardProps>(
@@ -50,6 +52,7 @@ export default React.memo<GameBoardProps>(
     roomId,
     socket,
     onCardDefeated,
+    onSignOut,
   }) => {
     console.log('GameBoard rendering for playerRole:', playerRole, 'with gameState:', gameState);
 
@@ -339,6 +342,7 @@ export default React.memo<GameBoardProps>(
       }
 
       if (isOpponentCard) {
+        // For opponent cards, we hide all details and show card back
         return {
           ...card,
           imageUrl: cardBackMonster,
@@ -393,6 +397,9 @@ export default React.memo<GameBoardProps>(
             >
               Copy Room ID
             </button>
+            {onSignOut && (
+              <LogoutButton className="room-info-logout" onSignOut={onSignOut} />
+            )}
           </div>
         </div>
         {gameState.gameStatus === 'finished' && (
@@ -413,13 +420,18 @@ export default React.memo<GameBoardProps>(
               (total, card) => total + card.hp,
               0
             );
-            const handHP = opponentData.hand.reduce((total, card) => total + card.hp, 0);
+            // For opponent cards in hand, we need to use the actual HP values, not the hidden ones
+            const handHP = opponentData.hand.reduce((total, card) => {
+              // Use the actual card HP, not the hidden value (which is 0)
+              return total + (card.hp || card.maxHp || 0);
+            }, 0);
             return battlefieldHP + handHP;
           })()}
           energy={opponentData.energy}
           maxEnergy={opponentData.maxHealth}
           avatar={opponentInfo.avatar}
           kills={playerRole === 'player1' ? killCount.player2 : killCount.player1}
+          isCurrentTurn={gameState.currentTurn === (playerRole === 'player1' ? 'player2' : 'player1')}
         />
         
         <DraggableStatBox
@@ -446,11 +458,19 @@ export default React.memo<GameBoardProps>(
 
         <div className={`player-area opponent ${gameState.currentTurn === (playerRole === 'player1' ? 'player2' : 'player1') ? 'active-turn' : ''}`}>
           <div className="player-profile opponent-profile">
-            <img src={opponentInfo.avatar} alt="Opponent" className="profile-picture" />
+            <img 
+              src={opponentInfo.avatar} 
+              alt={opponentInfo.name} 
+              className="profile-picture" 
+              onError={(e) => {
+                console.error(`Failed to load opponent profile image: ${opponentInfo.avatar}`);
+                e.currentTarget.onerror = null; // Prevent infinite error loop
+              }}
+            />
             <span className="player-name">
               {opponentInfo.name}
               <span className={`turn-indicator ${gameState.currentTurn === (playerRole === 'player1' ? 'player2' : 'player1') ? 'active' : 'waiting'}`}>
-                {gameState.currentTurn === (playerRole === 'player1' ? 'player2' : 'player1') ? 'Opponent Turn' : 'Waiting...'}
+                {gameState.currentTurn === (playerRole === 'player1' ? 'player2' : 'player1') ? `${opponentInfo.name}'s Turn` : 'Please Wait...'}
               </span>
             </span>
           </div>

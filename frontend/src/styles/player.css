@@ -51,10 +51,12 @@
 
 .opponent-summary {
   border: 2px solid #ff4444;
+  border-radius: 12px;
 }
 
 .player-summary {
   border: 2px solid #44ff44;
+  border-radius: 12px;
 }
 
 .profile-section {
@@ -106,6 +108,15 @@
 
 .player-area.active-turn {
   background: rgba(46, 204, 113, 0.3);
+  border: 3px solid #4CAF50;
+  border-radius: 20px;
+  box-shadow: 0 0 25px rgba(0, 255, 0, 0.7);
+  animation: pulse-green 2s infinite alternate;
+}
+
+@keyframes pulse-green {
+  0% { box-shadow: 0 0 15px rgba(0, 255, 0, 0.5); }
+  100% { box-shadow: 0 0 30px rgba(0, 255, 0, 0.9); }
 }
 
 .player-profile {
@@ -119,7 +130,7 @@
   font-size: 14px;
   font-weight: 500;
   padding: 4px 12px;
-  border-radius: 12px;
+  border-radius: 20px;
   background: rgba(0, 0, 0, 0.5);
   color: #ffffff;
   margin-left: 12px;
@@ -128,6 +139,7 @@
 .turn-indicator.active {
   background: rgba(46, 204, 113, 0.5);
   animation: pulse 2s infinite;
+  border-radius: 20px;
 }
 
 .turn-indicator.waiting {

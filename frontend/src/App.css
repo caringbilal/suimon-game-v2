@@ -289,9 +289,14 @@ input[type='text']:focus {
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
+.turn-indicator.waiting {
+  color: #ff6b6b;
+}
+
 .turn-indicator.active {
   background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-  border: none;
+  border: 1px solid rgba(46, 204, 113, 0.3);
+  border-radius: 20px;
   box-shadow: 0 2px 8px rgba(46, 204, 113, 0.3);
 }
 
@@ -421,6 +426,12 @@ button[onClick*="Copy"]:hover {
   position: relative;
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
   overflow: visible;
+}
+
+.active-turn {
+  /* here I can mention border border pixels which I hide for now */
+  border-radius: 20px;
+  background-color: rgba(37, 172, 42, 0.2);
 }
 
 .game-board h2 {
@@ -643,11 +654,13 @@ button[onClick*="Copy"]:hover {
 .profile-picture {
   width: 60px;
   height: 60px;
-  border-radius: 12px;
+  border-radius: 20px;
   object-fit: cover;
   border: 2px solid rgba(255, 255, 255, 0.2);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
   background: rgba(0, 0, 0, 0.3);
+  display: block;
+  max-width: 100%;
 }
 
 .player-name {
