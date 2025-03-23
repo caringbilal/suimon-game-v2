@@ -136,12 +136,10 @@ export default (io) => {
         // Check if Player 1 is disconnected
         if (!room.player1.socket) {
           console.warn(`Player 1 is disconnected for room ${roomId}. Attempting to reconnect.`);
-          // Instead of ending the game, we'll update the player1 socket with the latest socket ID from the database
           const player1 = await getPlayer(room.player1.id);
           if (player1) {
             console.log(`Updating Player 1 socket for room ${roomId}`);
             room.player1.socket = socket.id;
-            // Don't return here, allow the join to proceed
           } else {
             console.warn(`Player 1 not found in database for room ${roomId}. Ending game.`);
             socket.emit('error', 'Player 1 is disconnected. The game has ended.');
@@ -169,7 +167,6 @@ export default (io) => {
         });
 
         // Notify Player 1 that Player 2 has joined
-        console.log(`Notifying Player 1 (socket: ${room.player1.socket}) that Player 2 has joined`);
         io.to(room.player1.socket).emit('playerJoined', {
           player2: {
             id: player.playerId,
@@ -179,7 +176,6 @@ export default (io) => {
         });
 
         // Notify Player 2 of successful join
-        console.log(`Notifying Player 2 (socket: ${socket.id}) of successful join`);
         socket.emit('joinSuccess', {
           roomId,
           player1: {
@@ -190,7 +186,6 @@ export default (io) => {
         });
 
         // Emit updated opponent info to both players
-        console.log(`Emitting updateOpponentInfo to room ${roomId}`);
         io.to(roomId).emit('updateOpponentInfo', {
           name: room.player2.name,
           avatar: room.player2.avatar,
@@ -205,128 +200,107 @@ export default (io) => {
         const player1Hand = getInitialHand(4);
         const player2Hand = getInitialHand(4);
 
-        const sharedGameState = {
+        console.log('Player 1 Hand:', player1Hand);
+        console.log('Player 2 Hand:', player2Hand);
+
+        // Calculate total HP for each player
+        const player1TotalHP = player1Hand.reduce((total, card) => total + card.hp, 0);
+        const player2TotalHP = player2Hand.reduce((total, card) => total + card.hp, 0);
+
+        // New game state structure with player1 and player2 objects
+        const gameState = {
           gameStatus: 'playing',
-          currentTurn: 'player',
-          battlefield: { player: [], opponent: [] },
-          players: {
-            player: {
-              id: room.player1.id,
-              energy: 700,
-              deck: [],
-              hand: player1Hand.map((card) => ({
-                ...card,
-                hp: card.maxHp,
-                id: `${card.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                imageUrl: `/monsters/${card.id}.png`,
-                name: card.id,
-              })),
-            },
-            opponent: {
-              id: room.player2.id,
-              energy: 700,
-              deck: [],
-              hand: player2Hand.map((card) => ({
-                ...card,
-                hp: card.maxHp,
-                id: `${card.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                imageUrl: `/monsters/${card.id}.png`,
-                name: card.id,
-              })),
-            },
+          currentTurn: 'player1', // Start with Player 1's turn
+          battlefield: {
+            player1: [],
+            player2: [],
           },
-          playerMaxHealth: 700,
-          opponentMaxHealth: 700,
           combatLog: [],
-          killCount: { player: 0, opponent: 0 },
-        };
-
-        // Log the image URLs for debugging
-        console.log('Player 1 Hand Image URLs:', player1Hand.map(card => `/monsters/${card.id}.png`));
-        console.log('Player 2 Hand Image URLs:', player2Hand.map(card => `/monsters/${card.id}.png`));
-
-        // Create perspective-based states for each player
-        const player1GameState = {
-          ...sharedGameState,
-          gameStatus: 'playing', // Ensure gameStatus is set
-          players: {
-            player: sharedGameState.players.player,
-            opponent: {
-              ...sharedGameState.players.opponent,
-              hand: player2Hand.map((_, index) => ({
-                id: `placeholder-p2-${index}-${Date.now()}`,
-                name: 'Hidden Card',
-                attack: 0,
-                defense: 0,
-                hp: 0,
-                maxHp: 0,
-                imageUrl: '/monsters/card-back.png',
-              })),
-            },
+          killCount: {
+            player1: 0,
+            player2: 0,
+          },
+          player1: {
+            id: room.player1.id,
+            name: room.player1.name,
+            energy: 700,
+            deck: [],
+            hand: player1Hand.map((card) => ({
+              ...card,
+              hp: card.maxHp,
+              id: `${card.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              imageUrl: `/monsters/${card.id}.png`,
+              name: card.id,
+            })),
+            totalHP: player1TotalHP,
+            maxHealth: 700,
+          },
+          player2: {
+            id: room.player2.id,
+            name: room.player2.name,
+            energy: 700,
+            deck: [],
+            hand: player2Hand.map((card) => ({
+              ...card,
+              hp: card.maxHp,
+              id: `${card.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              imageUrl: `/monsters/${card.id}.png`,
+              name: card.id,
+            })),
+            totalHP: player2TotalHP,
+            maxHealth: 700,
           },
         };
-
-        const player2GameState = {
-          ...sharedGameState,
-          gameStatus: 'playing', // Ensure gameStatus is set
-          currentTurn: 'opponent', // Player 2's perspective
-          players: {
-            player: {
-              ...sharedGameState.players.opponent,
-              hand: player2Hand.map((card) => ({
-                ...card,
-                hp: card.maxHp,
-                id: `${card.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                imageUrl: `/monsters/${card.id}.png`,
-                name: card.id,
-              })),
-            },
-            opponent: {
-              ...sharedGameState.players.player,
-              hand: player1Hand.map((_, index) => ({
-                id: `placeholder-p1-${index}-${Date.now()}`,
-                name: 'Hidden Card',
-                attack: 0,
-                defense: 0,
-                hp: 0,
-                maxHp: 0,
-                imageUrl: '/monsters/card-back.png',
-              })),
-            },
-          },
-        };
-
-        // Log the image URLs in the game state for both players
-        console.log('Player 1 Game State Hand Image URLs:', player1GameState.players.player.hand.map(card => card.imageUrl));
-        console.log('Player 2 Game State Hand Image URLs:', player2GameState.players.player.hand.map(card => card.imageUrl));
 
         // Store game state in the room
         room.gameState = {
-          shared: sharedGameState,
-          player1: player1GameState,
-          player2: player2GameState,
-          hands: { player1: player1Hand, player2: player2Hand },
+          shared: gameState,
+          hands: { player1: player1Hand, player2: player2Hand }, // Preserve actual hands
         };
 
-        // Emit game state updates to both players using room broadcast
-        console.log(`Broadcasting gameStateUpdated to room ${roomId}`);
-        console.log(`Player 1 socket: ${room.player1.socket}, Player 2 socket: ${room.player2.socket}`);
-        // Send player1 state to player1's socket specifically
+        // Emit game state updates to both players
         if (room.player1.socket) {
           console.log(`Emitting gameStateUpdated to Player 1 (socket: ${room.player1.socket})`);
           io.to(room.player1.socket).emit('gameStateUpdated', {
-            gameState: player1GameState,
+            gameState: {
+              ...gameState,
+              player2: {
+                ...gameState.player2,
+                hand: gameState.player2.hand.map((_, index) => ({
+                  id: `placeholder-p2-${index}-${Date.now()}`,
+                  name: 'Hidden Card',
+                  attack: 0,
+                  defense: 0,
+                  hp: 0,
+                  maxHp: 0,
+                  imageUrl: '/monsters/card-back.png',
+                })),
+              },
+            },
             playerRole: 'player1',
           });
         } else {
           console.warn(`Player 1 socket is null for room ${roomId}. Cannot emit gameStateUpdated to Player 1.`);
         }
 
-        // Send player2 state to player2's socket specifically
         if (room.player2.socket) {
           console.log(`Emitting gameStateUpdated to Player 2 (socket: ${room.player2.socket})`);
           io.to(room.player2.socket).emit('gameStateUpdated', {
-            gameState: player2GameState,
+            gameState: {
+              ...gameState,
+              player1: {
+                ...gameState.player1,
+                hand: gameState.player1.hand.map((_, index) => ({
+                  id: `placeholder-p1-${index}-${Date.now()}`,
+                  name: 'Hidden Card',
+                  attack: 0,
+                  defense: 0,
+                  hp: 0,
+                  maxHp: 0,
+                  imageUrl: '/monsters/card-back.png',
+                })),
+              },
+            },
             playerRole: 'player2',
           });
         } else {
@@ -335,13 +309,12 @@ export default (io) => {
 
         // Update game state in database
         await updateGame(roomId, {
-          gameState: JSON.stringify(room.gameState),
+          gameState: JSON.stringify(gameState),
           status: 'playing',
           hands: { player1: player1Hand, player2: player2Hand },
         });
 
         // Broadcast to room that game has started
-        console.log(`Broadcasting gameStarted to room ${roomId}`);
         io.to(roomId).emit('gameStarted', {
           player1: {
             name: room.player1.name,
@@ -353,9 +326,8 @@ export default (io) => {
           },
         });
 
-        // Update the game state in the database
         await updateGame(roomId, {
-          gameState: JSON.stringify(sharedGameState),
+          gameState: JSON.stringify(gameState),
           hands: { player1: player1Hand, player2: player2Hand },
           status: 'playing',
         });
@@ -383,110 +355,66 @@ export default (io) => {
         // Update the shared game state
         room.gameState.shared = {
           ...room.gameState.shared,
-          gameStatus: gameState.gameStatus || 'playing', // Ensure gameStatus is set
+          gameStatus: gameState.gameStatus || 'playing',
           currentTurn: gameState.currentTurn,
           battlefield: gameState.battlefield,
           combatLog: gameState.combatLog,
           killCount: gameState.killCount,
-          players: {
-            player: gameState.players.player,
-            opponent: gameState.players.opponent,
+          player1: {
+            ...room.gameState.shared.player1,
+            energy: gameState.player1.energy,
+            totalHP: gameState.player1.totalHP,
+            hand: room.gameState.hands.player1, // Preserve Player 1's actual hand
+          },
+          player2: {
+            ...room.gameState.shared.player2,
+            energy: gameState.player2.energy,
+            totalHP: gameState.player2.totalHP,
+            hand: room.gameState.hands.player2, // Preserve Player 2's actual hand
           },
         };
 
-        // Update player-specific states with correct perspective
-        const player1Turn = gameState.currentTurn === 'player' ? 'player' : 'opponent';
-        const player2Turn = gameState.currentTurn === 'opponent' ? 'player' : 'opponent';
-
-        room.gameState.player1 = {
-          ...room.gameState.player1,
-          gameStatus: gameState.gameStatus || 'playing', // Ensure gameStatus is set
-          currentTurn: player1Turn,
-          battlefield: gameState.battlefield,
-          combatLog: gameState.combatLog,
-          killCount: gameState.killCount,
-          players: {
-            player: gameState.players.player,
-            opponent: {
-              ...gameState.players.opponent,
-              hand: room.gameState.hands.player2.map((_, index) => ({
-                id: `placeholder-p2-${index}-${Date.now()}`,
-                name: 'Hidden Card',
-                attack: 0,
-                defense: 0,
-                hp: 0,
-                maxHp: 0,
-                imageUrl: '/monsters/card-back.png',
-              })),
-            },
-          },
-        };
-
-        room.gameState.player2 = {
-          ...room.gameState.player2,
-          gameStatus: gameState.gameStatus || 'playing', // Ensure gameStatus is set
-          currentTurn: player2Turn,
-          battlefield: {
-            player: gameState.battlefield.opponent,
-            opponent: gameState.battlefield.player,
-          },
-          combatLog: gameState.combatLog,
-          killCount: gameState.killCount,
-          players: {
-            player: gameState.players.opponent,
-            opponent: {
-              ...gameState.players.player,
-              hand: room.gameState.hands.player1.map((_, index) => ({
-                id: `placeholder-p1-${index}-${Date.now()}`,
-                name: 'Hidden Card',
-                attack: 0,
-                defense: 0,
-                hp: 0,
-                maxHp: 0,
-                imageUrl: '/monsters/card-back.png',
-              })),
-            },
-          },
-        };
-
-        // Update hands if necessary
-        if (playerRole === 'player1') {
-          room.gameState.hands.player1 = gameState.players.player.hand;
-          room.gameState.player1.players.player.hand = gameState.players.player.hand;
-          room.gameState.player2.players.opponent.hand = gameState.players.player.hand.map((_, index) => ({
-            id: `placeholder-p1-${index}-${Date.now()}`,
-            name: 'Hidden Card',
-            attack: 0,
-            defense: 0,
-            hp: 0,
-            maxHp: 0,
-            imageUrl: '/monsters/card-back.png',
-          }));
-        } else {
-          room.gameState.hands.player2 = gameState.players.player.hand;
-          room.gameState.player2.players.player.hand = gameState.players.player.hand;
-          room.gameState.player1.players.opponent.hand = gameState.players.player.hand.map((_, index) => ({
-            id: `placeholder-p2-${index}-${Date.now()}`,
-            name: 'Hidden Card',
-            attack: 0,
-            defense: 0,
-            hp: 0,
-            maxHp: 0,
-            imageUrl: '/monsters/card-back.png',
-          }));
-        }
-
-        // Emit updated game states to both players using their specific sockets
+        // Emit updated game states to both players
         if (room.player1.socket) {
+          console.log(`Emitting gameStateUpdated to Player 1 (socket: ${room.player1.socket})`);
           io.to(room.player1.socket).emit('gameStateUpdated', {
-            gameState: room.gameState.player1,
+            gameState: {
+              ...room.gameState.shared,
+              player2: {
+                ...room.gameState.shared.player2,
+                hand: room.gameState.hands.player2.map((_, index) => ({
+                  id: `placeholder-p2-${index}-${Date.now()}`,
+                  name: 'Hidden Card',
+                  attack: 0,
+                  defense: 0,
+                  hp: 0,
+                  maxHp: 0,
+                  imageUrl: '/monsters/card-back.png',
+                })),
+              },
+            },
             playerRole: 'player1',
           });
         }
 
         if (room.player2.socket) {
+          console.log(`Emitting gameStateUpdated to Player 2 (socket: ${room.player2.socket})`);
           io.to(room.player2.socket).emit('gameStateUpdated', {
-            gameState: room.gameState.player2,
+            gameState: {
+              ...room.gameState.shared,
+              player1: {
+                ...room.gameState.shared.player1,
+                hand: room.gameState.hands.player1.map((_, index) => ({
+                  id: `placeholder-p1-${index}-${Date.now()}`,
+                  name: 'Hidden Card',
+                  attack: 0,
+                  defense: 0,
+                  hp: 0,
+                  maxHp: 0,
+                  imageUrl: '/monsters/card-back.png',
+                })),
+              },
+            },
             playerRole: 'player2',
           });
         }
@@ -501,9 +429,9 @@ export default (io) => {
         // Check for game end conditions
         if (gameState.gameStatus === 'finished') {
           console.log(`Game ${roomId} has finished`);
-          const winner = gameState.players.player.energy <= 0 ? 'opponent' : 'player';
-          const winnerId = winner === 'player' ? room.player1.id : room.player2.id;
-          const winnerName = winner === 'player' ? room.player1.name : room.player2.name;
+          const winner = gameState.player1.energy <= 0 ? 'player2' : 'player1';
+          const winnerId = winner === 'player1' ? room.player1.id : room.player2.id;
+          const winnerName = winner === 'player1' ? room.player1.name : room.player2.name;
 
           io.to(roomId).emit('gameEnded', {
             winner,
@@ -511,8 +439,8 @@ export default (io) => {
           });
 
           // Update player stats
-          const player1Wins = winner === 'player' ? 1 : 0;
-          const player2Wins = winner === 'opponent' ? 1 : 0;
+          const player1Wins = winner === 'player1' ? 1 : 0;
+          const player2Wins = winner === 'player2' ? 1 : 0;
           await updatePlayerStats(room.player1.id, player1Wins, 1 - player1Wins);
           await updatePlayerStats(room.player2.id, player2Wins, 1 - player2Wins);
 
@@ -544,13 +472,8 @@ export default (io) => {
 
         room.lastActivity = Date.now();
 
-        const isPlayer1 = playerRole === 'player1';
-        const currentPlayerKey = isPlayer1 ? 'player' : 'opponent';
-        const opponentPlayerKey = isPlayer1 ? 'opponent' : 'player';
-
         // Validate turn
-        const expectedTurn = isPlayer1 ? 'player' : 'opponent';
-        if (room.gameState.shared.currentTurn !== expectedTurn) {
+        if (room.gameState.shared.currentTurn !== playerRole) {
           console.error(
             `Invalid turn: Player ${socket.id} tried to play during ${room.gameState.shared.currentTurn}'s turn`
           );
@@ -566,38 +489,23 @@ export default (io) => {
         };
 
         // Update battlefield
-        room.gameState.shared.battlefield[currentPlayerKey] = [updatedCard];
-
-        // Remove card from player's hand and update both perspectives
-        if (isPlayer1) {
+        if (playerRole === 'player1') {
+          room.gameState.shared.battlefield.player1 = [updatedCard];
           room.gameState.hands.player1 = room.gameState.hands.player1.filter((c) => c.id !== card.id);
-          room.gameState.player1.players.player.hand = room.gameState.hands.player1;
-          room.gameState.player2.players.opponent.hand = room.gameState.hands.player1.map((_, index) => ({
-            id: `placeholder-p1-${index}-${Date.now()}`,
-            name: 'Hidden Card',
-            attack: 0,
-            defense: 0,
-            hp: 0,
-            maxHp: 0,
-            imageUrl: '/monsters/card-back.png',
-          }));
+          room.gameState.shared.player1.hand = room.gameState.hands.player1;
+          room.gameState.shared.player1.totalHP = room.gameState.hands.player1.reduce((total, card) => total + card.hp, 0);
         } else {
+          room.gameState.shared.battlefield.player2 = [updatedCard];
           room.gameState.hands.player2 = room.gameState.hands.player2.filter((c) => c.id !== card.id);
-          room.gameState.player2.players.player.hand = room.gameState.hands.player2;
-          room.gameState.player1.players.opponent.hand = room.gameState.hands.player2.map((_, index) => ({
-            id: `placeholder-p2-${index}-${Date.now()}`,
-            name: 'Hidden Card',
-            attack: 0,
-            defense: 0,
-            hp: 0,
-            maxHp: 0,
-            imageUrl: '/monsters/card-back.png',
-          }));
+          room.gameState.shared.player2.hand = room.gameState.hands.player2;
+          room.gameState.shared.player2.totalHP = room.gameState.hands.player2.reduce((total, card) => total + card.hp, 0);
         }
+
+        console.log(`Updated battlefield for ${playerRole}:`, room.gameState.shared.battlefield);
 
         // Check if player's hand is empty and they have energy left
         const { getInitialHand } = await import('../data/monsters.js');
-        if (isPlayer1 && room.gameState.hands.player1.length === 0 && room.gameState.shared.players.player.energy > 0) {
+        if (playerRole === 'player1' && room.gameState.hands.player1.length === 0 && room.gameState.shared.player1.energy > 0) {
           const newHand = getInitialHand(4);
           room.gameState.hands.player1 = newHand.map((card) => ({
             ...card,
@@ -606,17 +514,9 @@ export default (io) => {
             imageUrl: `/monsters/${card.id}.png`,
             name: card.id,
           }));
-          room.gameState.player1.players.player.hand = room.gameState.hands.player1;
-          room.gameState.player2.players.opponent.hand = room.gameState.hands.player1.map((_, index) => ({
-            id: `placeholder-p1-${index}-${Date.now()}`,
-            name: 'Hidden Card',
-            attack: 0,
-            defense: 0,
-            hp: 0,
-            maxHp: 0,
-            imageUrl: '/monsters/card-back.png',
-          }));
-        } else if (!isPlayer1 && room.gameState.hands.player2.length === 0 && room.gameState.shared.players.opponent.energy > 0) {
+          room.gameState.shared.player1.hand = room.gameState.hands.player1;
+          room.gameState.shared.player1.totalHP = room.gameState.hands.player1.reduce((total, card) => total + card.hp, 0);
+        } else if (playerRole === 'player2' && room.gameState.hands.player2.length === 0 && room.gameState.shared.player2.energy > 0) {
           const newHand = getInitialHand(4);
           room.gameState.hands.player2 = newHand.map((card) => ({
             ...card,
@@ -625,48 +525,55 @@ export default (io) => {
             imageUrl: `/monsters/${card.id}.png`,
             name: card.id,
           }));
-          room.gameState.player2.players.player.hand = room.gameState.hands.player2;
-          room.gameState.player1.players.opponent.hand = room.gameState.hands.player2.map((_, index) => ({
-            id: `placeholder-p2-${index}-${Date.now()}`,
-            name: 'Hidden Card',
-            attack: 0,
-            defense: 0,
-            hp: 0,
-            maxHp: 0,
-            imageUrl: '/monsters/card-back.png',
-          }));
+          room.gameState.shared.player2.hand = room.gameState.hands.player2;
+          room.gameState.shared.player2.totalHP = room.gameState.hands.player2.reduce((total, card) => total + card.hp, 0);
         }
 
         // Update shared game state with turn switch
-        room.gameState.shared.currentTurn = room.gameState.shared.currentTurn === 'player' ? 'opponent' : 'player';
+        room.gameState.shared.currentTurn = room.gameState.shared.currentTurn === 'player1' ? 'player2' : 'player1';
         console.log(`Turn switched to ${room.gameState.shared.currentTurn}`);
 
-        // Update player-specific states with correct perspective
-        const player1Turn = room.gameState.shared.currentTurn === 'player' ? 'player' : 'opponent';
-        const player2Turn = room.gameState.shared.currentTurn === 'opponent' ? 'player' : 'opponent';
-
-        room.gameState.player1.currentTurn = player1Turn;
-        room.gameState.player1.battlefield = {
-          player: room.gameState.shared.battlefield.player,
-          opponent: room.gameState.shared.battlefield.opponent,
-        };
-        room.gameState.player2.currentTurn = player2Turn;
-        room.gameState.player2.battlefield = {
-          player: room.gameState.shared.battlefield.opponent,
-          opponent: room.gameState.shared.battlefield.player,
-        };
-
-        // Emit updated game states to both players using their specific sockets
+        // Emit updated game states to both players
         if (room.player1.socket) {
+          console.log(`Emitting gameStateUpdated to Player 1 (socket: ${room.player1.socket})`);
           io.to(room.player1.socket).emit('gameStateUpdated', {
-            gameState: room.gameState.player1,
+            gameState: {
+              ...room.gameState.shared,
+              player2: {
+                ...room.gameState.shared.player2,
+                hand: room.gameState.hands.player2.map((_, index) => ({
+                  id: `placeholder-p2-${index}-${Date.now()}`,
+                  name: 'Hidden Card',
+                  attack: 0,
+                  defense: 0,
+                  hp: 0,
+                  maxHp: 0,
+                  imageUrl: '/monsters/card-back.png',
+                })),
+              },
+            },
             playerRole: 'player1',
           });
         }
 
         if (room.player2.socket) {
+          console.log(`Emitting gameStateUpdated to Player 2 (socket: ${room.player2.socket})`);
           io.to(room.player2.socket).emit('gameStateUpdated', {
-            gameState: room.gameState.player2,
+            gameState: {
+              ...room.gameState.shared,
+              player1: {
+                ...room.gameState.shared.player1,
+                hand: room.gameState.hands.player1.map((_, index) => ({
+                  id: `placeholder-p1-${index}-${Date.now()}`,
+                  name: 'Hidden Card',
+                  attack: 0,
+                  defense: 0,
+                  hp: 0,
+                  maxHp: 0,
+                  imageUrl: '/monsters/card-back.png',
+                })),
+              },
+            },
             playerRole: 'player2',
           });
         }
@@ -709,113 +616,94 @@ export default (io) => {
         const player1Hand = getInitialHand(4);
         const player2Hand = getInitialHand(4);
 
+        // Calculate total HP for each player
+        const player1TotalHP = player1Hand.reduce((total, card) => total + card.hp, 0);
+        const player2TotalHP = player2Hand.reduce((total, card) => total + card.hp, 0);
+
         // Reset the shared game state
-        const sharedGameState = {
+        const gameState = {
           gameStatus: 'playing',
-          currentTurn: 'player',
-          battlefield: { player: [], opponent: [] },
-          players: {
-            player: {
-              id: room.player1.id,
-              energy: 700,
-              deck: [],
-              hand: player1Hand.map((card) => ({
-                ...card,
-                hp: card.maxHp,
-                id: `${card.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                imageUrl: `/monsters/${card.id}.png`,
-                name: card.id,
-              })),
-            },
-            opponent: {
-              id: room.player2.id,
-              energy: 700,
-              deck: [],
-              hand: player2Hand.map((card) => ({
-                ...card,
-                hp: card.maxHp,
-                id: `${card.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                imageUrl: `/monsters/${card.id}.png`,
-                name: card.id,
-              })),
-            },
-          },
-          playerMaxHealth: 700,
-          opponentMaxHealth: 700,
+          currentTurn: 'player1',
+          battlefield: { player1: [], player2: [] },
           combatLog: [],
-          killCount: { player: 0, opponent: 0 },
-        };
-
-        // Create perspective-based states for each player
-        const player1GameState = {
-          ...sharedGameState,
-          gameStatus: 'playing', // Ensure gameStatus is set
-          players: {
-            player: sharedGameState.players.player,
-            opponent: {
-              ...sharedGameState.players.opponent,
-              hand: player2Hand.map((_, index) => ({
-                id: `placeholder-p2-${index}-${Date.now()}`,
-                name: 'Hidden Card',
-                attack: 0,
-                defense: 0,
-                hp: 0,
-                maxHp: 0,
-                imageUrl: '/monsters/card-back.png',
-              })),
-            },
+          killCount: { player1: 0, player2: 0 },
+          player1: {
+            id: room.player1.id,
+            name: room.player1.name,
+            energy: 700,
+            deck: [],
+            hand: player1Hand.map((card) => ({
+              ...card,
+              hp: card.maxHp,
+              id: `${card.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              imageUrl: `/monsters/${card.id}.png`,
+              name: card.id,
+            })),
+            totalHP: player1TotalHP,
+            maxHealth: 700,
           },
-        };
-
-        const player2GameState = {
-          ...sharedGameState,
-          gameStatus: 'playing', // Ensure gameStatus is set
-          currentTurn: 'opponent', // Player 2's perspective
-          players: {
-            player: {
-              ...sharedGameState.players.opponent,
-              hand: player2Hand.map((card) => ({
-                ...card,
-                hp: card.maxHp,
-                id: `${card.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                imageUrl: `/monsters/${card.id}.png`,
-                name: card.id,
-              })),
-            },
-            opponent: {
-              ...sharedGameState.players.player,
-              hand: player1Hand.map((_, index) => ({
-                id: `placeholder-p1-${index}-${Date.now()}`,
-                name: 'Hidden Card',
-                attack: 0,
-                defense: 0,
-                hp: 0,
-                maxHp: 0,
-                imageUrl: '/monsters/card-back.png',
-              })),
-            },
+          player2: {
+            id: room.player2.id,
+            name: room.player2.name,
+            energy: 700,
+            deck: [],
+            hand: player2Hand.map((card) => ({
+              ...card,
+              hp: card.maxHp,
+              id: `${card.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              imageUrl: `/monsters/${card.id}.png`,
+              name: card.id,
+            })),
+            totalHP: player2TotalHP,
+            maxHealth: 700,
           },
         };
 
         // Update room game state
         room.gameState = {
-          shared: sharedGameState,
-          player1: player1GameState,
-          player2: player2GameState,
+          shared: gameState,
           hands: { player1: player1Hand, player2: player2Hand },
         };
 
-        // Emit game state updates to both players using their specific sockets
+        // Emit game state updates to both players
         if (room.player1.socket) {
           io.to(room.player1.socket).emit('gameStateUpdated', {
-            gameState: player1GameState,
+            gameState: {
+              ...gameState,
+              player2: {
+                ...gameState.player2,
+                hand: gameState.player2.hand.map((_, index) => ({
+                  id: `placeholder-p2-${index}-${Date.now()}`,
+                  name: 'Hidden Card',
+                  attack: 0,
+                  defense: 0,
+                  hp: 0,
+                  maxHp: 0,
+                  imageUrl: '/monsters/card-back.png',
+                })),
+              },
+            },
             playerRole: 'player1',
           });
         }
 
         if (room.player2.socket) {
           io.to(room.player2.socket).emit('gameStateUpdated', {
-            gameState: player2GameState,
+            gameState: {
+              ...gameState,
+              player1: {
+                ...gameState.player1,
+                hand: gameState.player1.hand.map((_, index) => ({
+                  id: `placeholder-p1-${index}-${Date.now()}`,
+                  name: 'Hidden Card',
+                  attack: 0,
+                  defense: 0,
+                  hp: 0,
+                  maxHp: 0,
+                  imageUrl: '/monsters/card-back.png',
+                })),
+              },
+            },
             playerRole: 'player2',
           });
         }
@@ -843,9 +731,9 @@ export default (io) => {
         // Update the winner in the database
         const room = activeRooms.get(roomId);
         if (room) {
-          const winner = gameState.players.player.energy <= 0 ? 'opponent' : 'player';
-          const winnerId = winner === 'player' ? room.player1.id : room.player2.id;
-          const winnerName = winner === 'player' ? room.player1.name : room.player2.name;
+          const winner = gameState.player1.energy <= 0 ? 'player2' : 'player1';
+          const winnerId = winner === 'player1' ? room.player1.id : room.player2.id;
+          const winnerName = winner === 'player1' ? room.player1.name : room.player2.name;
           await updateGameWinner(roomId, winnerId, winnerName);
           activeRooms.delete(roomId);
           await updateGame(roomId, { status: 'finished' });
@@ -864,26 +752,22 @@ export default (io) => {
       for (const [roomId, room] of activeRooms.entries()) {
         if (room.player1?.socket === socket.id) {
           console.log(`Player 1 disconnected from room ${roomId}. Ending game.`);
-          // Notify Player 2 (if connected) that the game has ended
           if (room.player2?.socket) {
             io.to(room.player2.socket).emit('playerDisconnected', {
               message: 'Player 1 disconnected. Game ended.',
               disconnectedPlayer: 'player1',
             });
           }
-          // Clean up the room
           activeRooms.delete(roomId);
           updateGame(roomId, { status: 'abandoned' });
         } else if (room.player2?.socket === socket.id) {
           console.log(`Player 2 disconnected from room ${roomId}. Ending game.`);
-          // Notify Player 1 (if connected) that the game has ended
           if (room.player1?.socket) {
             io.to(room.player1.socket).emit('playerDisconnected', {
               message: 'Player 2 disconnected. Game ended.',
               disconnectedPlayer: 'player2',
             });
           }
-          // Clean up the room
           activeRooms.delete(roomId);
           updateGame(roomId, { status: 'abandoned' });
         }

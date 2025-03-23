@@ -12,9 +12,12 @@ export interface CardType {
 // Player interface
 export interface Player {
   id: string;
+  name: string;
   energy: number;
   deck: CardType[];
   hand: CardType[];
+  totalHP: number;
+  maxHealth: number;
 }
 
 // Combat log entry interface
@@ -26,19 +29,18 @@ export interface CombatLogEntry {
 
 // Single GameState interface with proper types
 export interface GameState {
-  players: {
-    player: Player;
-    opponent: Player;
-  };
-  battlefield: {
-    player: CardType[];
-    opponent: CardType[];
-  };
-  currentTurn: 'player' | 'opponent';
   gameStatus: 'waiting' | 'playing' | 'finished';
-  playerMaxHealth: number;
-  opponentMaxHealth: number;
+  currentTurn: 'player1' | 'player2';
+  battlefield: {
+    player1: CardType[];
+    player2: CardType[];
+  };
   combatLog: CombatLogEntry[];
-  killCount: { player: number; opponent: number };
-  winner?: { id: string; name: string }; // Updated to match socketHandlers.js
+  killCount: {
+    player1: number;
+    player2: number;
+  };
+  player1: Player;
+  player2: Player;
+  winner?: { id: string; name: string };
 }

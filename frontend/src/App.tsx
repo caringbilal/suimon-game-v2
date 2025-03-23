@@ -3,8 +3,8 @@ import { GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
 import './App.css';
 import './styles/room-info.css';
-import GameBoard from './components/GameBoard';
-import GameOver from './components/GameOver';
+import GameBoard from '@components/GameBoard';
+import GameOver from '@components/GameOver';
 import { GameState, CardType } from './types/game';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
@@ -12,9 +12,9 @@ import { io, Socket } from 'socket.io-client';
 import PlayerProfile from './assets/ui/Player_Profile.jpg';
 import OpponentProfile from './assets/ui/AIPlayer_Profile.jpg';
 import { useAuth } from './context/AuthContext';
-import LogoutButton from './components/LogoutButton';
-import LeaderboardTable from './components/LeaderboardTable';
-import RoomInfoBox from './components/RoomInfoBox';
+import LogoutButton from '@components/LogoutButton';
+import LeaderboardTable from '@components/LeaderboardTable';
+import RoomInfoBox from '@components/RoomInfoBox';
 
 // Define the server URL for AWS deployment
 const SERVER_URL = process.env.REACT_APP_API_URL || 'http://localhost:3002';
@@ -50,6 +50,7 @@ const LoginScreen: React.FC = () => {
           body: JSON.stringify({
             playerId: decoded.sub,
             playerName: decoded.name,
+            avatar: decoded.picture,
           }),
           credentials: 'include',
         });
@@ -123,12 +124,15 @@ function App() {
   };
 
   // Memoized function to add combat log entries
-  const addCombatLogEntry = useCallback((message: string, type: string = 'info') => {
-    setGameState((prev) => {
-      if (!prev) return prev;
+  const addCombatLogEntry = useCallback((message: string, type: string) => {
+    setGameState((prevState) => {
+      if (!prevState) return prevState;
       return {
-        ...prev,
-        combatLog: [...prev.combatLog, { timestamp: Date.now(), message, type }],
+        ...prevState,
+        combatLog: [
+          ...prevState.combatLog,
+          { timestamp: Date.now(), message, type }
+        ]
       };
     });
   }, []);
@@ -263,20 +267,20 @@ function App() {
             console.log('Setting gameState:', data.gameState);
             setGameState(data.gameState);
             if (data.gameState.gameStatus === 'finished') {
-              const winner = data.gameState.players.player.energy <= 0 ? 'opponent' : 'player';
+              const winner = data.gameState.player1.energy <= 0 ? 'player2' : 'player1';
               const winnerName =
                 data.gameState.winner?.name ||
-                (winner === 'player' ? playerInfo.name : opponentInfo.name);
+                (winner === 'player1' ? (playerRole === 'player1' ? playerInfo.name : opponentInfo.name) : (playerRole === 'player2' ? playerInfo.name : opponentInfo.name));
               setDialogMessage(`Game Over! ${winnerName} wins!`);
               if (roomId && user) {
                 socket.emit('gameEnded', {
                   roomId,
                   player1Id: playerRole === 'player1' ? user.sub : '',
                   player2Id: playerRole === 'player2' ? user.sub : '',
-                  player1Wins: winner === 'player' && playerRole === 'player1' ? 1 : 0,
-                  player1Losses: winner === 'opponent' && playerRole === 'player1' ? 1 : 0,
-                  player2Wins: winner === 'player' && playerRole === 'player2' ? 1 : 0,
-                  player2Losses: winner === 'opponent' && playerRole === 'player2' ? 1 : 0,
+                  player1Wins: winner === 'player1' ? 1 : 0,
+                  player1Losses: winner === 'player2' ? 1 : 0,
+                  player2Wins: winner === 'player2' ? 1 : 0,
+                  player2Losses: winner === 'player1' ? 1 : 0,
                   gameState: data.gameState,
                 });
               }
@@ -337,26 +341,25 @@ function App() {
       // Disconnect socket if not authenticated
       socket.disconnect();
     }
-  }, [isAuthenticated, user]); // Only depend on isAuthenticated and user
+  }, [isAuthenticated, user]);
 
   // Handle player card play
   const handleCardPlay = (card: CardType) => {
     if (!gameState || !roomId || !playerRole) return;
 
     const isPlayerTurn =
-      playerRole === 'player1' ? gameState.currentTurn === 'player' : gameState.currentTurn === 'opponent';
+      playerRole === 'player1' ? gameState.currentTurn === 'player1' : gameState.currentTurn === 'player2';
     if (!isPlayerTurn) return;
 
     socket.emit('cardPlayed', { roomId, card, playerRole });
   };
 
   // Handle card defeated event
-  const handleCardDefeated = useCallback((defeatedPlayerKey: 'player' | 'opponent') => {
-    console.log(`Card defeated for ${defeatedPlayerKey}`);
-    setGameState((prevState) => {
+  const handleCardDefeated = useCallback((defeatedPlayerKey: 'player1' | 'player2') => {
+    setGameState((prevState: GameState | null) => {
       if (!prevState) return prevState;
       const newKillCount = { ...prevState.killCount };
-      const killerKey = defeatedPlayerKey === 'player' ? 'opponent' : 'player';
+      const killerKey = defeatedPlayerKey === 'player1' ? 'player2' : 'player1';
       newKillCount[killerKey] += 1;
       return {
         ...prevState,
@@ -364,6 +367,8 @@ function App() {
       };
     });
   }, []);
+
+  // addCombatLogEntry is already defined above
 
   // Create a new game room
   const createRoom = () => {
@@ -374,6 +379,7 @@ function App() {
     const playerData = {
       playerId: user.sub,
       playerName: user.name,
+      avatar: user.picture, // Pass Google profile picture URL
     };
     socket.emit('createRoom', playerData);
   };
@@ -381,7 +387,7 @@ function App() {
   // Join an existing game room
   const joinRoom = () => {
     if (!isAuthenticated || !joinRoomInput) return;
-    socket.emit('joinRoom', { roomId: joinRoomInput, playerData: { playerId: user?.sub, playerName: user?.name } });
+    socket.emit('joinRoom', { roomId: joinRoomInput, playerData: { playerId: user?.sub, playerName: user?.name, avatar: user?.picture } });
   };
 
   // Render login screen if not authenticated
@@ -396,9 +402,9 @@ function App() {
 
   // If game is over, show game over screen
   if (gameState && gameState.gameStatus === 'finished') {
-    const playerEnergy = gameState.players.player.energy;
-    const opponentEnergy = gameState.players.opponent.energy;
-    const winner = playerEnergy <= 0 ? 'opponent' : 'player';
+    const playerEnergy = playerRole === 'player1' ? gameState.player1.energy : gameState.player2.energy;
+    const opponentEnergy = playerRole === 'player1' ? gameState.player2.energy : gameState.player1.energy;
+    const winner = gameState.player1.energy <= 0 ? 'player2' : 'player1';
 
     // Refresh leaderboard data
     fetch(`${SERVER_URL}/games`, { credentials: 'include' })
@@ -414,6 +420,7 @@ function App() {
     return (
       <GameOver
         winner={winner}
+        playerRole={playerRole!} // Pass playerRole to GameOver
         playerInfo={playerInfo}
         opponentInfo={opponentInfo}
         killCount={gameState.killCount}

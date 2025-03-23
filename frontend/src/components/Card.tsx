@@ -9,7 +9,7 @@ interface CardProps {
   isAttacking?: boolean;
   isDefending?: boolean;
   onAnimationEnd?: () => void;
-  onError?: (e: React.SyntheticEvent<HTMLImageElement, Event>) => void; // Add onError prop
+  onError?: (e: React.SyntheticEvent<HTMLImageElement, Event>) => void;
 }
 
 const Card: React.FC<CardProps> = ({ card, onClick, isAttacking, isDefending, onAnimationEnd, onError }) => {
@@ -21,8 +21,19 @@ const Card: React.FC<CardProps> = ({ card, onClick, isAttacking, isDefending, on
     }),
   });
 
-  // Log card details outside of JSX
-  console.log(`Card: ${card.name}, HP: ${card.hp}, MaxHP: ${card.maxHp}, Image: ${card.imageUrl}`);
+  // Validate card data before rendering
+  if (!card || !card.id || !card.maxHp) {
+    console.error('Invalid card data:', card);
+    return null; // Prevent rendering if card data is invalid
+  }
+
+  // Log card details for debugging
+  console.log(`Rendering Card: ${card.name}, HP: ${card.hp}, MaxHP: ${card.maxHp}, Image: ${card.imageUrl}`);
+
+  // Ensure image URL is valid, provide a fallback if not
+  const imageUrl = card.imageUrl && card.imageUrl.startsWith('/')
+    ? `${process.env.PUBLIC_URL}${card.imageUrl}`
+    : card.imageUrl || '/monsters/default-card.png';
 
   return (
     <div
@@ -33,28 +44,32 @@ const Card: React.FC<CardProps> = ({ card, onClick, isAttacking, isDefending, on
       onAnimationEnd={onAnimationEnd}
     >
       <div className="card-title">
-        {card.name}
+        {card.name || 'Unknown Card'}
         <span className="health-percentage">{Math.round((card.hp / card.maxHp) * 100)}%</span>
       </div>
       <div className="card-image">
         <img
-          src={card.imageUrl ? (card.imageUrl.startsWith('/') ? `${process.env.PUBLIC_URL}${card.imageUrl}` : card.imageUrl) : ''}
+          src={imageUrl}
           alt={card.name || 'Card'}
-          onError={onError} // Use the onError prop passed from GameBoard.tsx
+          onError={(e) => {
+            console.error(`Failed to load image for card ${card.id}: ${imageUrl}`);
+            e.currentTarget.src = `${process.env.PUBLIC_URL}/monsters/card-back.png`; // Fallback image
+            if (onError) onError(e); // Call the passed onError handler
+          }}
         />
       </div>
       <div className="card-stats">
         <div className="stat">
           <span className="stat-label">ATK</span>
-          <span className="stat-value">{card.attack}</span>
+          <span className="stat-value">{card.attack || 0}</span>
         </div>
         <div className="stat">
           <span className="stat-label">DEF</span>
-          <span className="stat-value">{card.defense}</span>
+          <span className="stat-value">{card.defense || 0}</span>
         </div>
         <div className="stat">
           <span className="stat-label">HP</span>
-          <span className="stat-value">{card.hp}</span>
+          <span className="stat-value">{card.hp || 0}</span>
         </div>
       </div>
     </div>

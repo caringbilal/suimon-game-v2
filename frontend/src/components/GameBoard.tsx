@@ -1,14 +1,16 @@
 import React, { useState, useEffect, Dispatch, SetStateAction, useCallback } from 'react';
 import { GameState, CardType } from '../types/game';
-import Card from './Card';
-import cardBack from '../assets/ui/card-back.png';
+import Card from '@components/Card';
 import cardBackMonster from '../assets/monsters/card-back.png';
-import '../styles/combat.css';
-import '../styles/player.css';
-import '../styles/game-stats.css';
-import GameEndDialog from './GameEndDialog';
+import GameEndDialog from '@components/GameEndDialog';
 import { useDrop } from 'react-dnd';
 import { Socket } from 'socket.io-client';
+
+// Placeholder interface for GameEndDialog (update this if you have the actual component)
+interface GameEndDialogProps {
+  winner: 'player' | 'opponent'; // Assuming GameEndDialog expects this type
+  onRestart: () => void;
+}
 
 interface CombatLogEntry {
   timestamp: number;
@@ -24,11 +26,11 @@ interface GameBoardProps {
   opponentInfo: { name: string; avatar: string };
   combatLog: CombatLogEntry[];
   addCombatLogEntry: (message: string, type: string) => void;
-  killCount: { player: number; opponent: number };
+  killCount: { player1: number; player2: number };
   playerRole: 'player1' | 'player2';
   roomId: string;
   socket: Socket;
-  onCardDefeated?: (defeatedPlayerKey: 'player' | 'opponent') => void;
+  onCardDefeated?: (defeatedPlayerKey: 'player1' | 'player2') => void;
 }
 
 export default React.memo<GameBoardProps>(
@@ -53,19 +55,18 @@ export default React.memo<GameBoardProps>(
     const [error, setError] = useState<string>('');
     const [imagesLoaded, setImagesLoaded] = useState<boolean>(false);
 
-    // Determine player and opponent keys based on playerRole
-    const playerKey: 'player' | 'opponent' = playerRole === 'player1' ? 'player' : 'opponent';
-    const opponentKey: 'player' | 'opponent' = playerRole === 'player1' ? 'opponent' : 'player';
+    // Determine the player's and opponent's data based on the playerRole
+    const myData = playerRole === 'player1' ? gameState.player1 : gameState.player2;
+    const opponentData = playerRole === 'player1' ? gameState.player2 : gameState.player1;
 
-    // Preload card images to ensure they are available on first render
     useEffect(() => {
       const preloadImages = async () => {
         console.log('Preloading images for cards...');
         const cardsToPreload = [
-          ...gameState.players[playerKey].hand,
-          ...gameState.players[opponentKey].hand,
-          ...gameState.battlefield.player,
-          ...gameState.battlefield.opponent,
+          ...myData.hand,
+          ...opponentData.hand,
+          ...gameState.battlefield.player1,
+          ...gameState.battlefield.player2,
         ];
 
         const imagePromises = cardsToPreload.map((card) => {
@@ -92,12 +93,27 @@ export default React.memo<GameBoardProps>(
       };
 
       preloadImages();
-    }, [gameState.players, gameState.battlefield, playerKey, opponentKey]);
+    }, [myData.hand, opponentData.hand, gameState.battlefield]);
 
-    // Sync game state with server
     useEffect(() => {
-      socket.on('gameStateUpdated', (newState: GameState) => {
-        console.log('Received gameStateUpdated in GameBoard for socket ID:', socket.id, 'newState:', newState);
+      socket.on('gameStateUpdated', (data: { gameState: GameState; playerRole: 'player1' | 'player2' }) => {
+        const { gameState: newState, playerRole: receivedRole } = data;
+        console.log('Received gameStateUpdated in GameBoard for socket ID:', socket.id, 'newState:', newState, 'playerRole:', receivedRole);
+
+        if (!newState || !newState.player1 || !newState.player2 || !newState.battlefield) {
+          console.error('Invalid game state received:', newState);
+          setError('Invalid game state received from server');
+          return;
+        }
+
+        if (receivedRole !== playerRole) {
+          console.warn(`Player role mismatch: expected ${playerRole}, received ${receivedRole}`);
+        }
+
+        console.log('Updated Player 1 Hand:', newState.player1.hand);
+        console.log('Updated Player 2 Hand:', newState.player2.hand);
+        console.log('Updated Battlefield:', newState.battlefield);
+
         setGameState(newState);
         setError('');
       });
@@ -118,149 +134,141 @@ export default React.memo<GameBoardProps>(
         socket.off('error');
         socket.off('playerDisconnected');
       };
-    }, [socket, setGameState]);
+    }, [socket, setGameState, playerRole]);
 
-    // Debug: Log game state changes
     useEffect(() => {
       console.log('Current gameState in GameBoard:', gameState);
-      console.log('Player hand:', gameState.players[playerKey].hand);
-      console.log('Opponent hand:', gameState.players[opponentKey].hand);
-      console.log('Battlefield (player):', gameState.battlefield.player);
-      console.log('Battlefield (opponent):', gameState.battlefield.opponent);
+      console.log('Player 1 hand:', gameState.player1.hand);
+      console.log('Player 2 hand:', gameState.player2.hand);
+      console.log('Battlefield (player1):', gameState.battlefield.player1);
+      console.log('Battlefield (player2):', gameState.battlefield.player2);
       console.log('Opponent info:', opponentInfo);
       console.log('Current turn:', gameState.currentTurn);
-    }, [gameState, playerKey, opponentKey, opponentInfo]);
+    }, [gameState, opponentInfo]);
 
-    // Handle combat (only for Player 1)
     const handleCombat = useCallback(() => {
-      const playerCard = gameState.battlefield.player[0];
-      const opponentCard = gameState.battlefield.opponent[0];
+      const player1Card = gameState.battlefield.player1[0];
+      const player2Card = gameState.battlefield.player2[0];
 
-      if (!playerCard || !opponentCard) {
-        console.log('No combat: Missing player or opponent card on battlefield.');
+      if (!player1Card || !player2Card) {
+        console.log('No combat: Missing player1 or player2 card on battlefield.');
         return;
       }
 
-      console.log('Initiating combat between:', playerCard, 'and', opponentCard);
+      console.log('Initiating combat between:', player1Card, 'and', player2Card);
 
-      const playerDamage = Math.max(2, playerCard.attack - Math.floor(opponentCard.defense * 0.8));
-      const opponentDamage = Math.max(2, opponentCard.attack - Math.floor(playerCard.defense * 0.8));
-      playerCard.hp -= opponentDamage;
-      opponentCard.hp -= playerDamage;
+      const player1Damage = Math.max(2, player1Card.attack - Math.floor(player2Card.defense * 0.8));
+      const player2Damage = Math.max(2, player2Card.attack - Math.floor(player1Card.defense * 0.8));
+      player1Card.hp -= player2Damage;
+      player2Card.hp -= player1Damage;
 
-      const playerHpPercentage = Math.round((playerCard.hp / playerCard.maxHp) * 100);
-      const opponentHpPercentage = Math.round((opponentCard.hp / playerCard.maxHp) * 100);
+      const player1HpPercentage = Math.round((player1Card.hp / player1Card.maxHp) * 100);
+      const player2HpPercentage = Math.round((player2Card.hp / player2Card.maxHp) * 100);
 
-      const newCombatLog = [
+      const baseCombatLog = [
         ...gameState.combatLog,
         {
           timestamp: Date.now(),
-          message: `${playerCard.name} attacks with ${playerCard.attack} ATK vs ${opponentCard.defense} DEF`,
+          message: `${player1Card.name} attacks with ${player1Card.attack} ATK vs ${player2Card.defense} DEF`,
           type: 'combat',
         },
         {
           timestamp: Date.now(),
-          message: `${opponentCard.name} attacks with ${opponentCard.attack} ATK vs ${playerCard.defense} DEF`,
+          message: `${player2Card.name} attacks with ${player2Card.attack} ATK vs ${player1Card.defense} DEF`,
           type: 'combat',
         },
         {
           timestamp: Date.now(),
-          message: `${playerCard.name} takes ${opponentDamage} damage (HP: ${playerCard.hp}, ${playerHpPercentage}%)`,
+          message: `${player1Card.name} takes ${player2Damage} damage (HP: ${player1Card.hp}, ${player1HpPercentage}%)`,
           type: 'damage',
         },
         {
           timestamp: Date.now(),
-          message: `${opponentCard.name} takes ${playerDamage} damage (HP: ${opponentCard.hp}, ${opponentHpPercentage}%)`,
+          message: `${player2Card.name} takes ${player1Damage} damage (HP: ${player2Card.hp}, ${player2HpPercentage}%)`,
           type: 'damage',
         },
       ];
 
-      const playerWonRound =
-        playerDamage > opponentDamage || (playerDamage === opponentDamage && playerHpPercentage > opponentHpPercentage);
-      const roundWinner = playerWonRound ? 'player' : 'opponent';
-      const roundLoser = playerWonRound ? 'opponent' : 'player';
+      const player1WonRound =
+        player1Damage > player2Damage || (player1Damage === player2Damage && player1HpPercentage > player2HpPercentage);
+      const roundWinner = player1WonRound ? 'player1' : 'player2';
+      const roundLoser = player1WonRound ? 'player2' : 'player1';
 
-      const damageDealt = playerWonRound ? playerDamage : opponentDamage;
+      const damageDealt = player1WonRound ? player1Damage : player2Damage;
       const baseEnergyLoss = Math.max(2, Math.floor(damageDealt * 0.8));
-      const winnerEnergyLoss = Math.min(baseEnergyLoss, gameState.players[roundWinner].energy);
-      const loserEnergyLoss = Math.min(baseEnergyLoss * 2, gameState.players[roundLoser].energy);
+      const winnerEnergyLoss = Math.min(baseEnergyLoss, gameState[roundWinner].energy);
+      const loserEnergyLoss = Math.min(baseEnergyLoss * 2, gameState[roundLoser].energy);
 
-      const updatedPlayers = {
-        player: {
-          ...gameState.players.player,
-          energy: gameState.players.player.energy - (roundWinner === 'player' ? winnerEnergyLoss : loserEnergyLoss),
-        },
-        opponent: {
-          ...gameState.players.opponent,
-          energy:
-            gameState.players.opponent.energy - (roundWinner === 'opponent' ? winnerEnergyLoss : loserEnergyLoss),
-        },
-      };
-
-      const updatedBattlefield = {
-        player: playerCard.hp > 0 ? [playerCard] : [],
-        opponent: opponentCard.hp > 0 ? [opponentCard] : [],
-      };
-
-      let nextTurn: 'player' | 'opponent';
-      let updatedKillCount = { ...gameState.killCount };
-      if (opponentCard.hp <= 0) {
-        updatedKillCount = {
-          ...updatedKillCount,
-          player: updatedKillCount.player + 1,
-        };
-        nextTurn = 'opponent';
-        newCombatLog.push({
-          timestamp: Date.now(),
-          message: `${opponentCard.name} has been defeated! ${opponentInfo.name}'s turn!`,
-          type: 'death',
-        });
-        onCardDefeated?.('opponent');
-      } else if (playerCard.hp <= 0) {
-        updatedKillCount = {
-          ...updatedKillCount,
-          opponent: updatedKillCount.opponent + 1,
-        };
-        nextTurn = 'player';
-        newCombatLog.push({
-          timestamp: Date.now(),
-          message: `${playerCard.name} has been defeated! ${playerInfo.name}'s turn!`,
-          type: 'death',
-        });
-        onCardDefeated?.('player');
+      // Determine additional combat log entries based on the outcome
+      let additionalLogEntries: CombatLogEntry[] = [];
+      if (player2Card.hp <= 0) {
+        additionalLogEntries = [
+          {
+            timestamp: Date.now(),
+            message: `${player2Card.name} has been defeated! Player 2's turn!`,
+            type: 'death',
+          },
+        ];
+        onCardDefeated?.('player2');
+      } else if (player1Card.hp <= 0) {
+        additionalLogEntries = [
+          {
+            timestamp: Date.now(),
+            message: `${player1Card.name} has been defeated! Player 1's turn!`,
+            type: 'death',
+          },
+        ];
+        onCardDefeated?.('player1');
       } else {
-        nextTurn = roundLoser;
-        newCombatLog.push({
-          timestamp: Date.now(),
-          message: `Both cards survived! ${roundLoser === 'player' ? playerInfo.name : opponentInfo.name}'s turn!`,
-          type: 'combat',
-        });
+        additionalLogEntries = [
+          {
+            timestamp: Date.now(),
+            message: `Both cards survived! ${roundLoser === 'player1' ? 'Player 1' : 'Player 2'}'s turn!`,
+            type: 'combat',
+          },
+        ];
       }
 
-      const updatedState: GameState = {
+      const updatedGameState: GameState = {
         ...gameState,
-        players: updatedPlayers,
-        battlefield: updatedBattlefield,
-        currentTurn: nextTurn,
-        gameStatus: updatedPlayers.player.energy <= 0 || updatedPlayers.opponent.energy <= 0 ? 'finished' : 'playing',
-        combatLog: newCombatLog,
-        killCount: updatedKillCount,
+        player1: {
+          ...gameState.player1,
+          energy: gameState.player1.energy - (roundWinner === 'player1' ? winnerEnergyLoss : loserEnergyLoss),
+        },
+        player2: {
+          ...gameState.player2,
+          energy: gameState.player2.energy - (roundWinner === 'player2' ? winnerEnergyLoss : loserEnergyLoss),
+        },
+        battlefield: {
+          player1: player1Card.hp > 0 ? [player1Card] : [],
+          player2: player2Card.hp > 0 ? [player2Card] : [],
+        },
+        currentTurn: roundLoser,
+        combatLog: [...baseCombatLog, ...additionalLogEntries],
+        killCount: {
+          player1: player2Card.hp <= 0 ? gameState.killCount.player1 + 1 : gameState.killCount.player1,
+          player2: player1Card.hp <= 0 ? gameState.killCount.player2 + 1 : gameState.killCount.player2,
+        },
+        gameStatus:
+          gameState.player1.energy - (roundWinner === 'player1' ? winnerEnergyLoss : loserEnergyLoss) <= 0 ||
+          gameState.player2.energy - (roundWinner === 'player2' ? winnerEnergyLoss : loserEnergyLoss) <= 0
+            ? 'finished'
+            : 'playing',
       };
 
-      console.log('Updated game state after combat:', updatedState);
-      setGameState(updatedState);
+      console.log('Updated game state after combat:', updatedGameState);
+      setGameState(updatedGameState);
       if (roomId) {
-        console.log('Emitting updateGame event with updated state:', updatedState);
-        socket.emit('updateGame', { roomId, gameState: updatedState, playerRole });
+        console.log('Emitting updateGame event with updated state:', updatedGameState);
+        socket.emit('updateGame', { roomId, gameState: updatedGameState, playerRole });
       }
-    }, [gameState, onCardDefeated, opponentInfo.name, playerInfo.name, roomId, socket, setGameState]);
+    }, [gameState, onCardDefeated, roomId, socket, setGameState]);
 
-    // Combat interval (Player 1 only)
     useEffect(() => {
       if (playerRole === 'player1') {
         console.log('Setting up combat interval for Player 1');
         const fightInterval = setInterval(() => {
-          if (gameState.battlefield.player.length > 0 && gameState.battlefield.opponent.length > 0) {
+          if (gameState.battlefield.player1.length > 0 && gameState.battlefield.player2.length > 0) {
             handleCombat();
           }
         }, 500);
@@ -271,17 +279,16 @@ export default React.memo<GameBoardProps>(
       }
     }, [playerRole, gameState, handleCombat]);
 
-    // Combat animations
     useEffect(() => {
-      if (gameState.battlefield.player.length > 0 && gameState.battlefield.opponent.length > 0) {
-        const playerCard = gameState.battlefield.player[0];
-        const opponentCard = gameState.battlefield.opponent[0];
-        console.log('Setting up combat animations:', { playerCard, opponentCard });
-        setAttackingCard(playerCard.id);
-        setDefendingCard(opponentCard.id);
+      if (gameState.battlefield.player1.length > 0 && gameState.battlefield.player2.length > 0) {
+        const player1Card = gameState.battlefield.player1[0];
+        const player2Card = gameState.battlefield.player2[0];
+        console.log('Setting up combat animations:', { player1Card, player2Card });
+        setAttackingCard(player1Card.id);
+        setDefendingCard(player2Card.id);
         setTimeout(() => {
-          setAttackingCard(opponentCard.id);
-          setDefendingCard(playerCard.id);
+          setAttackingCard(player2Card.id);
+          setDefendingCard(player1Card.id);
         }, 1000);
       } else {
         setAttackingCard(null);
@@ -289,14 +296,13 @@ export default React.memo<GameBoardProps>(
       }
     }, [gameState.battlefield]);
 
-    // Card drop handling
     const [{ isOver }, dropRef] = useDrop<CardType, void, { isOver: boolean }>({
       accept: 'CARD',
       drop: (item) => {
         const isPlayerTurn =
           playerRole === 'player1'
-            ? gameState.currentTurn === 'player' && gameState.gameStatus === 'playing'
-            : gameState.currentTurn === 'opponent' && gameState.gameStatus === 'playing';
+            ? gameState.currentTurn === 'player1' && gameState.gameStatus === 'playing'
+            : gameState.currentTurn === 'player2' && gameState.gameStatus === 'playing';
         if (isPlayerTurn) {
           console.log('Card dropped by player:', item);
           onCardPlay(item);
@@ -310,7 +316,6 @@ export default React.memo<GameBoardProps>(
       }),
     });
 
-    // Restart game
     const handleRestart = useCallback(() => {
       console.log('Restarting game for room:', roomId);
       setGameState(null);
@@ -319,40 +324,40 @@ export default React.memo<GameBoardProps>(
       }
     }, [roomId, socket, setGameState, playerRole]);
 
-    // Ensure cards are loaded before rendering
     if (!imagesLoaded) {
       console.log('Waiting for images to load...');
       return <div className="loading">Loading card images...</div>;
     }
 
-    // Validate and fix card image URL
     const validateCardImageUrl = (card: CardType, isOpponentCard: boolean = false): CardType => {
       if (!card || !card.id) {
         console.warn('Invalid card object received in validateCardImageUrl');
         return card;
       }
-      
-      // If it's an opponent's card, always show card back with hidden stats
+
       if (isOpponentCard) {
-        return { 
+        return {
           ...card,
           imageUrl: cardBackMonster,
           name: 'Hidden Card',
-          // Hide actual stats by setting them to placeholder values
           attack: 0,
           defense: 0,
           hp: 0,
-          maxHp: 1 // To avoid division by zero in health percentage calculation
+          maxHp: 1,
         };
       }
-      
-      // For player's cards, show actual card
+
       const expectedImageUrl = `/monsters/${card.id}.png`;
-      if (!card.imageUrl || card.imageUrl === cardBackMonster || card.name.includes('Hidden Card')) {
-        console.log(`Showing actual card for ${card.id}. Setting to: ${expectedImageUrl}`);
-        return { ...card, imageUrl: expectedImageUrl, name: card.id };
+      if (!card.imageUrl || card.imageUrl === cardBackMonster) {
+        console.log(`Fixing image URL for player's card ${card.id}. Setting to: ${expectedImageUrl}`);
+        return { ...card, imageUrl: expectedImageUrl };
       }
-      
+
+      if (card.name === 'Hidden Card' || !card.name) {
+        console.log(`Fixing name for player's card ${card.id}. Setting to: ${card.id}`);
+        return { ...card, name: card.id };
+      }
+
       return card;
     };
 
@@ -389,7 +394,8 @@ export default React.memo<GameBoardProps>(
         </div>
         {gameState.gameStatus === 'finished' && (
           <GameEndDialog
-            winner={gameState.players[playerKey].energy <= 0 ? opponentKey : playerKey}
+            // Map 'player1' | 'player2' to 'player' | 'opponent' based on playerRole
+            winner={playerRole === 'player1' ? (gameState.player1.energy <= 0 ? 'opponent' : 'player') : (gameState.player2.energy <= 0 ? 'opponent' : 'player')}
             onRestart={handleRestart}
           />
         )}
@@ -397,11 +403,11 @@ export default React.memo<GameBoardProps>(
           <div className="kill-counter">
             <div className="kill-stat">
               <span className="kill-label">Player Kills:</span>
-              <span className="kill-value">{killCount.player}</span>
+              <span className="kill-value">{playerRole === 'player1' ? killCount.player1 : killCount.player2}</span>
             </div>
             <div className="kill-stat">
               <span className="kill-label">Opponent Kills:</span>
-              <span className="kill-value">{killCount.opponent}</span>
+              <span className="kill-value">{playerRole === 'player1' ? killCount.player2 : killCount.player1}</span>
             </div>
           </div>
           <div className="health-summary-boxes">
@@ -410,14 +416,22 @@ export default React.memo<GameBoardProps>(
               <div className="summary-content">
                 <div className="summary-title">OPPONENT CARDS TOTAL HP</div>
                 <div className="summary-value">
-                  {gameState.battlefield[opponentKey].reduce((total, card) => total + card.hp, 0) +
-                    gameState.players[opponentKey].hand.reduce((total, card) => total + card.hp, 0)}
+                  {(() => {
+                    const battlefieldHP = gameState.battlefield[playerRole === 'player1' ? 'player2' : 'player1'].reduce(
+                      (total, card) => total + card.hp,
+                      0
+                    );
+                    const handHP = opponentData.hand.reduce((total, card) => total + card.hp, 0);
+                    console.log('Opponent Battlefield HP:', battlefieldHP, 'Opponent Hand HP:', handHP);
+                    console.log('Opponent Hand Cards:', opponentData.hand);
+                    return battlefieldHP + handHP;
+                  })()}
                   <div className="hp-bar">
                     <div
                       className="hp-fill"
-                      style={{ width: `${(gameState.players[opponentKey].energy / gameState.opponentMaxHealth) * 100}%` }}
+                      style={{ width: `${(opponentData.energy / opponentData.maxHealth) * 100}%` }}
                     />
-                    <span>{gameState.players[opponentKey].energy} Energy</span>
+                    <span>{opponentData.energy} Energy</span>
                   </div>
                 </div>
               </div>
@@ -427,14 +441,19 @@ export default React.memo<GameBoardProps>(
               <div className="summary-content">
                 <div className="summary-title">PLAYER CARDS TOTAL HP</div>
                 <div className="summary-value">
-                  {gameState.battlefield[playerKey].reduce((total, card) => total + card.hp, 0) +
-                    gameState.players[playerKey].hand.reduce((total, card) => total + card.hp, 0)}
+                  {(() => {
+                    const battlefieldHP = gameState.battlefield[playerRole].reduce((total, card) => total + card.hp, 0);
+                    const handHP = myData.hand.reduce((total, card) => total + card.hp, 0);
+                    console.log('Player Battlefield HP:', battlefieldHP, 'Player Hand HP:', handHP);
+                    console.log('Player Hand Cards:', myData.hand);
+                    return battlefieldHP + handHP;
+                  })()}
                   <div className="hp-bar">
                     <div
                       className="hp-fill"
-                      style={{ width: `${(gameState.players[playerKey].energy / gameState.playerMaxHealth) * 100}%` }}
+                      style={{ width: `${(myData.energy / myData.maxHealth) * 100}%` }}
                     />
-                    <span>{gameState.players[playerKey].energy} Energy</span>
+                    <span>{myData.energy} Energy</span>
                   </div>
                 </div>
               </div>
@@ -447,10 +466,10 @@ export default React.memo<GameBoardProps>(
             <div className="combat-stats-title">Combat Statistics</div>
             <div className="total-cards-info">
               <div className="player-cards-count">
-                Player Total Cards: {gameState.players[playerKey].hand.length + gameState.battlefield[playerKey].length}
+                Player Total Cards: {myData.hand.length + gameState.battlefield[playerRole].length}
               </div>
               <div className="opponent-cards-count">
-                Opponent Total Cards: {gameState.players[opponentKey].hand.length + gameState.battlefield[opponentKey].length}
+                Opponent Total Cards: {opponentData.hand.length + gameState.battlefield[playerRole === 'player1' ? 'player2' : 'player1'].length}
               </div>
             </div>
             <div className="combat-stats-content">
@@ -463,19 +482,18 @@ export default React.memo<GameBoardProps>(
           </div>
         </div>
 
-        <div className={`player-area opponent ${gameState.currentTurn === opponentKey ? 'active-turn' : ''}`}>
+        <div className={`player-area opponent ${gameState.currentTurn === (playerRole === 'player1' ? 'player2' : 'player1') ? 'active-turn' : ''}`}>
           <div className="player-profile opponent-profile">
             <img src={opponentInfo.avatar} alt="Opponent" className="profile-picture" />
             <span className="player-name">
               {opponentInfo.name}
-              <span className={`turn-indicator ${gameState.currentTurn === opponentKey ? 'active' : 'waiting'}`}>
-                {gameState.currentTurn === opponentKey ? 'Opponent Turn' : 'Waiting...'}
+              <span className={`turn-indicator ${gameState.currentTurn === (playerRole === 'player1' ? 'player2' : 'player1') ? 'active' : 'waiting'}`}>
+                {gameState.currentTurn === (playerRole === 'player1' ? 'player2' : 'player1') ? 'Opponent Turn' : 'Waiting...'}
               </span>
             </span>
           </div>
           <div className="player-hand opponent-hand">
-            {gameState.players[opponentKey].hand.map((card: CardType, index: number) => {
-              // Always show opponent's hand as card backs
+            {opponentData.hand.map((card: CardType, index: number) => {
               const updatedCard = validateCardImageUrl(card, true);
               console.log('Rendering opponent hand card:', updatedCard);
               return (
@@ -493,13 +511,11 @@ export default React.memo<GameBoardProps>(
         </div>
         <div className="battlefield">
           <div className="opponent-field">
-            {gameState.battlefield[opponentKey].map((card: CardType) => {
-              // For battlefield cards, we show the opponent's cards with their stats visible
-              // but with the card back image
+            {gameState.battlefield[playerRole === 'player1' ? 'player2' : 'player1'].map((card: CardType) => {
               const updatedCard = {
                 ...card,
-                imageUrl: cardBackMonster,
-                name: card.name || card.id
+                imageUrl: card.imageUrl || `/monsters/${card.id}.png`,
+                name: card.name || card.id,
               };
               console.log('Rendering opponent battlefield card:', updatedCard);
               return (
@@ -514,13 +530,14 @@ export default React.memo<GameBoardProps>(
                   }}
                   onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => {
                     console.error(`Failed to load image for opponent card ${card.id}: ${updatedCard.imageUrl}`);
+                    e.currentTarget.src = cardBackMonster;
                   }}
                 />
               );
             })}
           </div>
           <div ref={dropRef as unknown as React.RefObject<HTMLDivElement>} className={`player-field ${isOver ? 'field-highlight' : ''}`}>
-            {gameState.battlefield[playerKey].map((card: CardType) => {
+            {gameState.battlefield[playerRole].map((card: CardType) => {
               const updatedCard = validateCardImageUrl(card, false);
               console.log('Rendering player battlefield card:', updatedCard);
               return (
@@ -541,19 +558,19 @@ export default React.memo<GameBoardProps>(
             })}
           </div>
         </div>
-        <div className={`player-area current-player ${gameState.currentTurn === playerKey ? 'active-turn' : ''}`}>
+        <div className={`player-area current-player ${gameState.currentTurn === playerRole ? 'active-turn' : ''}`}>
           <div className="player-profile">
             <img src={playerInfo.avatar} alt="Player" className="profile-picture" />
             <span className="player-name">
               {playerInfo.name}
-              <span className={`turn-indicator ${gameState.currentTurn === playerKey ? 'active' : 'waiting'}`}>
-                {gameState.currentTurn === playerKey ? 'Your Turn' : 'Please Wait...'}
+              <span className={`turn-indicator ${gameState.currentTurn === playerRole ? 'active' : 'waiting'}`}>
+                {gameState.currentTurn === playerRole ? 'Your Turn' : 'Please Wait...'}
               </span>
             </span>
           </div>
           <div className="player-hand">
-            {gameState.players[playerKey].hand.length > 0 ? (
-              gameState.players[playerKey].hand.map((card: CardType) => {
+            {myData.hand.length > 0 ? (
+              myData.hand.map((card: CardType) => {
                 const updatedCard = validateCardImageUrl(card, false);
                 console.log('Rendering player hand card:', updatedCard);
                 return (
@@ -563,9 +580,9 @@ export default React.memo<GameBoardProps>(
                     onClick={() => {
                       const isPlayerTurn =
                         playerRole === 'player1'
-                          ? gameState.currentTurn === 'player' && gameState.gameStatus === 'playing'
-                          : gameState.currentTurn === 'opponent' && gameState.gameStatus === 'playing';
-                      if (isPlayerTurn && gameState.battlefield[playerKey].length === 0) {
+                          ? gameState.currentTurn === 'player1' && gameState.gameStatus === 'playing'
+                          : gameState.currentTurn === 'player2' && gameState.gameStatus === 'playing';
+                      if (isPlayerTurn && gameState.battlefield[playerRole].length === 0) {
                         console.log('Player playing card:', updatedCard);
                         onCardPlay(card);
                         addCombatLogEntry(`${playerInfo.name} plays ${card.name}!`, 'play');

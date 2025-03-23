@@ -85,7 +85,7 @@ app.get('/games', async (req, res) => {
 
 app.post('/players', async (req, res) => {
   try {
-    const { playerId, playerName } = req.body;
+    const { playerId, playerName, avatar } = req.body;
     if (!playerId || !playerName) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
@@ -95,7 +95,7 @@ app.post('/players', async (req, res) => {
       await logoutPlayer(playerId);
       res.json(player);
     } else {
-      player = await createPlayer({ playerId, playerName });
+      player = await createPlayer({ playerId, playerName, avatar });
       res.json(player);
     }
 

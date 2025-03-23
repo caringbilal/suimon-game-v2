@@ -35,11 +35,26 @@ const initializeDatabase = async () => {
           createdAt INTEGER NOT NULL,
           updatedAt INTEGER NOT NULL,
           wins INTEGER DEFAULT 0,
-          losses INTEGER DEFAULT 0
+          losses INTEGER DEFAULT 0,
+          avatar TEXT
         )`,
         (err) => {
           if (err) reject(err);
           else resolve();
+        }
+      );
+    });
+    
+    // Add avatar column if it doesn't exist
+    await new Promise((resolve, reject) => {
+      db.run(
+        `ALTER TABLE players ADD COLUMN avatar TEXT`,
+        (err) => {
+          if (err && !err.message.includes('duplicate column name')) {
+            reject(err);
+          } else {
+            resolve();
+          }
         }
       );
     });
@@ -166,16 +181,16 @@ const getPlayerByGoogleId = async (googleId) => {
 };
 
 const createPlayer = async (playerData) => {
-  const { playerId, playerName } = playerData;
+  const { playerId, playerName, avatar } = playerData;
   return new Promise((resolve, reject) => {
     db.run(
-      'INSERT INTO players (playerId, playerName, createdAt, updatedAt, wins, losses) VALUES (?, ?, ?, ?, ?, ?)',
-      [playerId, playerName, Date.now(), Date.now(), 0, 0],
+      'INSERT INTO players (playerId, playerName, createdAt, updatedAt, wins, losses, avatar) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [playerId, playerName, Date.now(), Date.now(), 0, 0, avatar],
       function (err) {
         if (err) {
           reject(err);
         } else {
-          resolve({ playerId, playerName, createdAt: Date.now(), updatedAt: Date.now(), wins: 0, losses: 0 });
+          resolve({ playerId, playerName, createdAt: Date.now(), updatedAt: Date.now(), wins: 0, losses: 0, avatar });
         }
       }
     );
