@@ -104,12 +104,17 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ players, games }) =
               const player2 = players.find(p => p.playerId === game.player2Id);
               const winner = players.find(p => p.playerId === game.winner);
               
+              // Ensure we display actual player names instead of generic 'Player 2'
+              const player1Name = player1?.playerName || 'Unknown';
+              const player2Name = player2?.playerName || 'Unknown';
+              const winnerName = winner?.playerName || (game.gameState === 'finished' ? 'Unknown' : 'In Progress');
+              
               return (
                 <tr key={game.gameId}>
                   <td>{game.gameId}</td>
-                  <td>{player1?.playerName || 'Unknown'}</td>
-                  <td>{player2?.playerName || 'Unknown'}</td>
-                  <td>{winner?.playerName || 'In Progress'}</td>
+                  <td>{player1Name}</td>
+                  <td>{player2Name}</td>
+                  <td>{winnerName}</td>
                   <td>{new Date(game.startTime).toLocaleString()}</td>
                 </tr>
               );

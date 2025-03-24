@@ -231,8 +231,13 @@ function App() {
       socket.on('updateOpponentInfo', (opponentData: { name: string; avatar: string }) => {
         console.log('Received updateOpponentInfo for socket ID:', socket.id, 'opponentData:', opponentData);
         if (opponentData && opponentData.name) {
-          setOpponentInfo(opponentData);
-          console.log('Updated opponent info:', opponentData);
+          // Ensure we're not using generic 'Player 2' name
+          const opponentName = opponentData.name === 'Player 2' ? 'Opponent' : opponentData.name;
+          setOpponentInfo({
+            name: opponentName,
+            avatar: opponentData.avatar || ''
+          });
+          console.log('Updated opponent info:', { name: opponentName, avatar: opponentData.avatar || '' });
         } else {
           console.warn('Received invalid opponent data:', opponentData);
         }

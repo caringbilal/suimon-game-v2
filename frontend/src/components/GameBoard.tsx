@@ -468,6 +468,8 @@ export default React.memo<GameBoardProps>(
               }}
               style={{ width: '50px', height: '50px', objectFit: 'cover', borderRadius: '10px' }}
               crossOrigin="anonymous"
+              // Force image reload when avatar changes by adding a timestamp
+              key={`opponent-avatar-${Date.now()}`}
             />
             <span className="player-name">
               {opponentDisplayName}
@@ -549,6 +551,8 @@ export default React.memo<GameBoardProps>(
               }}
               style={{ width: '50px', height: '50px', objectFit: 'cover', borderRadius: '10px' }}
               crossOrigin="anonymous"
+              // Force image reload when avatar changes by adding a timestamp
+              key={`player-avatar-${Date.now()}`}
             />
             <span className="player-name">
               {playerInfo.name}

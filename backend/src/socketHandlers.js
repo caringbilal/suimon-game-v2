@@ -152,7 +152,7 @@ export default (io) => {
 
         room.player2 = {
           id: player.playerId,
-          name: playerData.playerName || player.playerName,
+          name: player.playerName,
           socket: socket.id,
           avatar: playerData.avatar || player.avatar,
         };
@@ -171,7 +171,7 @@ export default (io) => {
         io.to(room.player1.socket).emit('playerJoined', {
           player2: {
             id: player.playerId,
-            name: playerData.playerName || player.playerName,
+            name: player.playerName,
             avatar: player.avatar || '',
           },
         });
@@ -364,6 +364,7 @@ export default (io) => {
             name: room.player2.name,
             avatar: room.player2.avatar || '',
           });
+          // Ensure we're sending the correct avatar URL for Player 2
           io.to(room.player1.socket).emit('updateOpponentInfo', {
             name: room.player2.name,
             avatar: room.player2.avatar || '',
@@ -376,6 +377,7 @@ export default (io) => {
           name: room.player1.name,
           avatar: room.player1.avatar || '',
         });
+        // Ensure we're sending the correct avatar URL for Player 1
         io.to(room.player2.socket).emit('updateOpponentInfo', {
           name: room.player1.name,
           avatar: room.player1.avatar || '',
