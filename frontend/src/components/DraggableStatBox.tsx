@@ -105,7 +105,7 @@ const DraggableStatBox: React.FC<DraggableStatBoxProps> = ({
       <div className="drag-handle" onMouseDown={handleMouseDown}>⋮⋮</div>
       <div className="stat-header">
         <img 
-          src={avatar || defaultAvatar} 
+          src={avatar && avatar.trim() !== '' ? avatar : defaultAvatar} 
           alt={type === 'player' ? 'Player' : 'Opponent'} 
           className="profile-picture" 
           style={{ width: '50px', height: '50px', objectFit: 'cover', borderRadius: '10px' }}

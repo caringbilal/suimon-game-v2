@@ -189,7 +189,7 @@ export default (io) => {
         // Emit updated opponent info to each player (send opponent's info to each player)
         console.log(`Emitting updateOpponentInfo to Player 1 (socket: ${room.player1.socket}) with Player 2's info:`, {
           name: room.player2.name,
-          avatar: room.player2.avatar,
+          avatar: room.player2.avatar || '',
         });
         io.to(room.player1.socket).emit('updateOpponentInfo', {
           name: room.player2.name,

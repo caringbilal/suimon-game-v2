@@ -92,8 +92,8 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ players, games }) =
           <thead>
             <tr>
               <th>Game ID</th>
-              <th>Player 1</th>
-              <th>Player 2</th>
+              <th>Host</th>
+              <th>Guest</th>
               <th>Winner</th>
               <th>Start Time</th>
             </tr>

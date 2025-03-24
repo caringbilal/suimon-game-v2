@@ -374,7 +374,7 @@ export default React.memo<GameBoardProps>(
     // Always use the actual opponent name when available
   const opponentDisplayName = opponentInfo.name && opponentInfo.name !== 'Waiting...' && opponentInfo.name !== 'Opponent'
       ? opponentInfo.name 
-      : playerRole === 'player1' ? opponentInfo.name || 'Player 2' : opponentInfo.name || 'Player 1';
+      : playerRole === 'player1' ? opponentInfo.name || 'Guest' : opponentInfo.name || 'Host';
 
     return (
       <div className="game-board">
@@ -540,7 +540,7 @@ export default React.memo<GameBoardProps>(
         <div className={`player-area current-player ${gameState.currentTurn === playerRole ? 'active-turn' : ''}`}>
           <div className="player-profile">
             <img 
-              src={playerInfo.avatar || defaultAvatar} 
+              src={playerInfo && playerInfo.avatar ? playerInfo.avatar : defaultAvatar} 
               alt={playerInfo.name} 
               className="profile-picture" 
               onError={(e) => {
