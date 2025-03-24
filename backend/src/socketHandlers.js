@@ -193,7 +193,7 @@ export default (io) => {
         });
         io.to(room.player1.socket).emit('updateOpponentInfo', {
           name: room.player2.name,
-          avatar: room.player2.avatar || playerData.avatar || '',
+          avatar: room.player2.avatar || '',
         });
 
         console.log(`Emitting updateOpponentInfo to Player 2 (socket: ${room.player2.socket}) with Player 1's info:`, {
@@ -598,6 +598,7 @@ export default (io) => {
         }
 
         // Update shared game state with turn switch
+        // Always switch turns after a player places a card
         room.gameState.shared.currentTurn = room.gameState.shared.currentTurn === 'player1' ? 'player2' : 'player1';
         console.log(`Turn switched to ${room.gameState.shared.currentTurn}`);
 

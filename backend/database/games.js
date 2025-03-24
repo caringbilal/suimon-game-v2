@@ -144,8 +144,8 @@ export const saveGame = (gameState) => {
 export const updateGameWinner = (gameId, winnerId, winnerName) => {
   return new Promise((resolve, reject) => {
     db.run(
-      `UPDATE games SET winner = ? WHERE gameId = ?`,
-      [`${winnerId} (${winnerName})`, gameId],
+      `UPDATE games SET winner = ?, winnerName = ? WHERE gameId = ?`,
+      [winnerId, winnerName, gameId],
       function (err) {
         if (err) {
           console.error('Error updating game winner:', err);
