@@ -1,3 +1,4 @@
+// GameBoard.tsx
 import React, { useState, useEffect, Dispatch, SetStateAction, useCallback } from 'react';
 import { GameState, CardType } from '../types/game';
 import Card from '@components/Card';
@@ -9,10 +10,10 @@ import { useDrop } from 'react-dnd';
 import { Socket } from 'socket.io-client';
 import '../styles/draggable-stats.css';
 import LogoutButton from './LogoutButton';
+import defaultAvatar from '../assets/ui/default-avatar.png'; // Ensure this image exists
 
-// Placeholder interface for GameEndDialog (update this if you have the actual component)
 interface GameEndDialogProps {
-  winner: 'player' | 'opponent'; // Assuming GameEndDialog expects this type
+  winner: 'player' | 'opponent';
   onRestart: () => void;
 }
 
@@ -55,19 +56,20 @@ export default React.memo<GameBoardProps>(
     onSignOut,
   }) => {
     console.log('GameBoard rendering for playerRole:', playerRole, 'with gameState:', gameState);
+    console.log('Player Info:', playerInfo);
+    console.log('Opponent Info:', opponentInfo);
 
     const [attackingCard, setAttackingCard] = useState<string | null>(null);
     const [defendingCard, setDefendingCard] = useState<string | null>(null);
     const [error, setError] = useState<string>('');
     const [imagesLoaded, setImagesLoaded] = useState<boolean>(false);
 
-    // Determine the player's and opponent's data based on the playerRole
     const myData = playerRole === 'player1' ? gameState.player1 : gameState.player2;
     const opponentData = playerRole === 'player1' ? gameState.player2 : gameState.player1;
 
     useEffect(() => {
       const preloadImages = async () => {
-        console.log('Preloading images for cards...');
+        console.log('Preloading images for cards and avatars...');
         const cardsToPreload = [
           ...myData.hand,
           ...opponentData.hand,
@@ -93,13 +95,34 @@ export default React.memo<GameBoardProps>(
           return Promise.resolve();
         });
 
-        await Promise.all(imagePromises);
+        const avatarPromises = [
+          playerInfo.avatar,
+          opponentInfo.avatar,
+        ].map((avatarUrl) => {
+          if (avatarUrl) {
+            return new Promise<void>((resolve) => {
+              const img = new Image();
+              img.src = avatarUrl;
+              img.onload = () => {
+                console.log(`Successfully preloaded avatar: ${avatarUrl}`);
+                resolve();
+              };
+              img.onerror = () => {
+                console.error(`Failed to preload avatar: ${avatarUrl}`);
+                resolve();
+              };
+            });
+          }
+          return Promise.resolve();
+        });
+
+        await Promise.all([...imagePromises, ...avatarPromises]);
         setImagesLoaded(true);
-        console.log('All images preloaded successfully.');
+        console.log('All images and avatars preloaded successfully.');
       };
 
       preloadImages();
-    }, [myData.hand, opponentData.hand, gameState.battlefield]);
+    }, [myData.hand, opponentData.hand, gameState.battlefield, playerInfo.avatar, opponentInfo.avatar]);
 
     useEffect(() => {
       socket.on('gameStateUpdated', (data: { gameState: GameState; playerRole: 'player1' | 'player2' }) => {
@@ -115,10 +138,6 @@ export default React.memo<GameBoardProps>(
         if (receivedRole !== playerRole) {
           console.warn(`Player role mismatch: expected ${playerRole}, received ${receivedRole}`);
         }
-
-        console.log('Updated Player 1 Hand:', newState.player1.hand);
-        console.log('Updated Player 2 Hand:', newState.player2.hand);
-        console.log('Updated Battlefield:', newState.battlefield);
 
         setGameState(newState);
         setError('');
@@ -205,7 +224,6 @@ export default React.memo<GameBoardProps>(
       const winnerEnergyLoss = Math.min(baseEnergyLoss, gameState[roundWinner].energy);
       const loserEnergyLoss = Math.min(baseEnergyLoss * 2, gameState[roundLoser].energy);
 
-      // Determine additional combat log entries based on the outcome
       let additionalLogEntries: CombatLogEntry[] = [];
       if (player2Card.hp <= 0) {
         additionalLogEntries = [
@@ -262,26 +280,20 @@ export default React.memo<GameBoardProps>(
             : 'playing',
       };
 
-      console.log('Updated game state after combat:', updatedGameState);
       setGameState(updatedGameState);
       if (roomId) {
-        console.log('Emitting updateGame event with updated state:', updatedGameState);
         socket.emit('updateGame', { roomId, gameState: updatedGameState, playerRole });
       }
     }, [gameState, onCardDefeated, roomId, socket, setGameState]);
 
     useEffect(() => {
       if (playerRole === 'player1') {
-        console.log('Setting up combat interval for Player 1');
         const fightInterval = setInterval(() => {
           if (gameState.battlefield.player1.length > 0 && gameState.battlefield.player2.length > 0) {
             handleCombat();
           }
         }, 500);
-        return () => {
-          console.log('Clearing combat interval for Player 1');
-          clearInterval(fightInterval);
-        };
+        return () => clearInterval(fightInterval);
       }
     }, [playerRole, gameState, handleCombat]);
 
@@ -289,7 +301,6 @@ export default React.memo<GameBoardProps>(
       if (gameState.battlefield.player1.length > 0 && gameState.battlefield.player2.length > 0) {
         const player1Card = gameState.battlefield.player1[0];
         const player2Card = gameState.battlefield.player2[0];
-        console.log('Setting up combat animations:', { player1Card, player2Card });
         setAttackingCard(player1Card.id);
         setDefendingCard(player2Card.id);
         setTimeout(() => {
@@ -310,10 +321,7 @@ export default React.memo<GameBoardProps>(
             ? gameState.currentTurn === 'player1' && gameState.gameStatus === 'playing'
             : gameState.currentTurn === 'player2' && gameState.gameStatus === 'playing';
         if (isPlayerTurn) {
-          console.log('Card dropped by player:', item);
           onCardPlay(item);
-        } else {
-          console.log('Card drop ignored: Not player’s turn or game not in playing state.');
         }
         return undefined;
       },
@@ -323,7 +331,6 @@ export default React.memo<GameBoardProps>(
     });
 
     const handleRestart = useCallback(() => {
-      console.log('Restarting game for room:', roomId);
       setGameState(null);
       if (roomId) {
         socket.emit('restartGame', { roomId, playerRole });
@@ -331,7 +338,6 @@ export default React.memo<GameBoardProps>(
     }, [roomId, socket, setGameState, playerRole]);
 
     if (!imagesLoaded) {
-      console.log('Waiting for images to load...');
       return <div className="loading">Loading card images...</div>;
     }
 
@@ -342,7 +348,6 @@ export default React.memo<GameBoardProps>(
       }
 
       if (isOpponentCard) {
-        // For opponent cards, we hide all details and show card back
         return {
           ...card,
           imageUrl: cardBackMonster,
@@ -356,19 +361,22 @@ export default React.memo<GameBoardProps>(
 
       const expectedImageUrl = `/monsters/${card.id}.png`;
       if (!card.imageUrl || card.imageUrl === cardBackMonster) {
-        console.log(`Fixing image URL for player's card ${card.id}. Setting to: ${expectedImageUrl}`);
         return { ...card, imageUrl: expectedImageUrl };
       }
 
       if (card.name === 'Hidden Card' || !card.name) {
-        console.log(`Fixing name for player's card ${card.id}. Setting to: ${card.id}`);
         return { ...card, name: card.id };
       }
 
       return card;
     };
 
-    console.log('Rendering GameBoard UI...');
+    // Fallback for opponent name
+    // Ensure we always display the actual opponent name when available
+  const opponentDisplayName = opponentInfo.name && opponentInfo.name !== 'Waiting...' && opponentInfo.name !== 'Opponent'
+      ? opponentInfo.name 
+      : playerRole === 'player1' ? 'Player 2' : 'Player 1';
+
     return (
       <div className="game-board">
         <div className="room-info-box">
@@ -392,7 +400,6 @@ export default React.memo<GameBoardProps>(
               className="copy-room-id"
               onClick={() => {
                 navigator.clipboard.writeText(roomId);
-                console.log('Room ID copied to clipboard:', roomId);
               }}
             >
               Copy Room ID
@@ -404,28 +411,23 @@ export default React.memo<GameBoardProps>(
         </div>
         {gameState.gameStatus === 'finished' && (
           <GameEndDialog
-            // Map 'player1' | 'player2' to 'player' | 'opponent' based on playerRole
             winner={playerRole === 'player1' ? (gameState.player1.energy <= 0 ? 'opponent' : 'player') : (gameState.player2.energy <= 0 ? 'opponent' : 'player')}
             onRestart={handleRestart}
           />
         )}
 
-        
-        {/* Draggable Stat Boxes */}
         <DraggableStatBox
           type="opponent"
           title="OPPONENT CARDS TOTAL HP"
           totalHP={(() => {
+            // For battlefield cards, we can see their actual HP
             const battlefieldHP = gameState.battlefield[playerRole === 'player1' ? 'player2' : 'player1'].reduce(
               (total, card) => total + card.hp,
               0
             );
-            // For opponent cards in hand, we need to use the actual HP values, not the hidden ones
-            const handHP = opponentData.hand.reduce((total, card) => {
-              // Use the actual card HP, not the hidden value (which is 0)
-              return total + (card.hp || card.maxHp || 0);
-            }, 0);
-            return battlefieldHP + handHP;
+            // For opponent's hand cards, we need to use the totalHP property directly from opponentData
+            // since it's calculated correctly on the server side
+            return opponentData.totalHP;
           })()}
           energy={opponentData.energy}
           maxEnergy={opponentData.maxHealth}
@@ -449,7 +451,6 @@ export default React.memo<GameBoardProps>(
           isCurrentTurn={gameState.currentTurn === playerRole}
         />
 
-        {/* Draggable Combat Stats */}
         <DraggableCombatStats
           combatLog={combatLog}
           playerCardsCount={myData.hand.length + gameState.battlefield[playerRole].length}
@@ -459,31 +460,31 @@ export default React.memo<GameBoardProps>(
         <div className={`player-area opponent ${gameState.currentTurn === (playerRole === 'player1' ? 'player2' : 'player1') ? 'active-turn' : ''}`}>
           <div className="player-profile opponent-profile">
             <img 
-              src={opponentInfo.avatar} 
-              alt={opponentInfo.name} 
+              src={opponentInfo && opponentInfo.avatar ? opponentInfo.avatar : defaultAvatar} 
+              alt={opponentDisplayName} 
               className="profile-picture" 
               onError={(e) => {
-                console.error(`Failed to load opponent profile image: ${opponentInfo.avatar}`);
-                e.currentTarget.onerror = null; // Prevent infinite error loop
+                console.error(`Failed to load opponent profile image: ${opponentInfo && opponentInfo.avatar ? opponentInfo.avatar : 'undefined'}`);
+                e.currentTarget.src = defaultAvatar;
               }}
+              style={{ width: '50px', height: '50px', objectFit: 'cover', borderRadius: '10px' }}
+              crossOrigin="anonymous"
             />
             <span className="player-name">
-              {opponentInfo.name}
+              {opponentDisplayName}
               <span className={`turn-indicator ${gameState.currentTurn === (playerRole === 'player1' ? 'player2' : 'player1') ? 'active' : 'waiting'}`}>
-                {gameState.currentTurn === (playerRole === 'player1' ? 'player2' : 'player1') ? `${opponentInfo.name}'s Turn` : 'Please Wait...'}
+                {gameState.currentTurn === (playerRole === 'player1' ? 'player2' : 'player1') ? `${opponentDisplayName}'s Turn` : 'Please Wait...'}
               </span>
             </span>
           </div>
           <div className="player-hand opponent-hand">
             {opponentData.hand.map((card: CardType, index: number) => {
               const updatedCard = validateCardImageUrl(card, true);
-              console.log('Rendering opponent hand card:', updatedCard);
               return (
                 <Card
                   key={`opponent-card-${index}`}
                   card={updatedCard}
                   onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-                    console.error(`Failed to load image for opponent hand card ${index}: ${updatedCard.imageUrl}`);
                     e.currentTarget.src = cardBackMonster;
                   }}
                 />
@@ -499,7 +500,6 @@ export default React.memo<GameBoardProps>(
                 imageUrl: card.imageUrl || `/monsters/${card.id}.png`,
                 name: card.name || card.id,
               };
-              console.log('Rendering opponent battlefield card:', updatedCard);
               return (
                 <Card
                   key={card.id}
@@ -511,7 +511,6 @@ export default React.memo<GameBoardProps>(
                     if (defendingCard === card.id) setDefendingCard(null);
                   }}
                   onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-                    console.error(`Failed to load image for opponent card ${card.id}: ${updatedCard.imageUrl}`);
                     e.currentTarget.src = cardBackMonster;
                   }}
                 />
@@ -521,7 +520,6 @@ export default React.memo<GameBoardProps>(
           <div ref={dropRef as unknown as React.RefObject<HTMLDivElement>} className={`player-field ${isOver ? 'field-highlight' : ''}`}>
             {gameState.battlefield[playerRole].map((card: CardType) => {
               const updatedCard = validateCardImageUrl(card, false);
-              console.log('Rendering player battlefield card:', updatedCard);
               return (
                 <Card
                   key={card.id}
@@ -533,7 +531,7 @@ export default React.memo<GameBoardProps>(
                     if (defendingCard === card.id) setDefendingCard(null);
                   }}
                   onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-                    console.error(`Failed to load image for player card ${card.id}: ${updatedCard.imageUrl}`);
+                    e.currentTarget.src = cardBackMonster;
                   }}
                 />
               );
@@ -542,7 +540,17 @@ export default React.memo<GameBoardProps>(
         </div>
         <div className={`player-area current-player ${gameState.currentTurn === playerRole ? 'active-turn' : ''}`}>
           <div className="player-profile">
-            <img src={playerInfo.avatar} alt="Player" className="profile-picture" />
+            <img 
+              src={playerInfo.avatar || defaultAvatar} 
+              alt={playerInfo.name} 
+              className="profile-picture" 
+              onError={(e) => {
+                console.error(`Failed to load player profile image: ${playerInfo.avatar}`);
+                e.currentTarget.src = defaultAvatar;
+              }}
+              style={{ width: '50px', height: '50px', objectFit: 'cover', borderRadius: '10px' }}
+              crossOrigin="anonymous"
+            />
             <span className="player-name">
               {playerInfo.name}
               <span className={`turn-indicator ${gameState.currentTurn === playerRole ? 'active' : 'waiting'}`}>
@@ -554,7 +562,6 @@ export default React.memo<GameBoardProps>(
             {myData.hand.length > 0 ? (
               myData.hand.map((card: CardType) => {
                 const updatedCard = validateCardImageUrl(card, false);
-                console.log('Rendering player hand card:', updatedCard);
                 return (
                   <Card
                     key={card.id}
@@ -565,15 +572,11 @@ export default React.memo<GameBoardProps>(
                           ? gameState.currentTurn === 'player1' && gameState.gameStatus === 'playing'
                           : gameState.currentTurn === 'player2' && gameState.gameStatus === 'playing';
                       if (isPlayerTurn && gameState.battlefield[playerRole].length === 0) {
-                        console.log('Player playing card:', updatedCard);
                         onCardPlay(card);
                         addCombatLogEntry(`${playerInfo.name} plays ${card.name}!`, 'play');
-                      } else {
-                        console.log('Card play ignored: Not player’s turn or battlefield not empty.');
                       }
                     }}
                     onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-                      console.error(`Failed to load image for hand card ${card.id}: ${updatedCard.imageUrl}`);
                       e.currentTarget.src = cardBackMonster;
                     }}
                   />

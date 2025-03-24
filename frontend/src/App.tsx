@@ -1,3 +1,4 @@
+// App.tsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
@@ -16,17 +17,14 @@ import LogoutButton from '@components/LogoutButton';
 import LeaderboardTable from '@components/LeaderboardTable';
 import RoomInfoBox from '@components/RoomInfoBox';
 
-// Define the server URL for AWS deployment
 const SERVER_URL = process.env.REACT_APP_API_URL || 'http://localhost:3002';
 
-// Initialize socket outside the component to ensure a single instance
 const socket: Socket = io(SERVER_URL, {
   transports: ['websocket', 'polling'],
-  reconnection: true, // Enable reconnection
+  reconnection: true,
   autoConnect: false,
 });
 
-// Login component
 const LoginScreen: React.FC = () => {
   const { isLoading, error } = useAuth();
 
@@ -40,7 +38,6 @@ const LoginScreen: React.FC = () => {
         sub: decoded.sub,
       };
 
-      // Create or update player in the database
       try {
         const response = await fetch(`${SERVER_URL}/players`, {
           method: 'POST',
@@ -93,14 +90,10 @@ const LoginScreen: React.FC = () => {
 };
 
 function App() {
-  console.log('App component is rendering');
-  // Game constants
   const MAX_ENERGY = 700;
 
-  // Auth state
   const { user, isAuthenticated, isLoading: authLoading, signOut } = useAuth();
 
-  // State variables
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [roomId, setRoomId] = useState<string | null>(null);
   const [playerRole, setPlayerRole] = useState<'player1' | 'player2' | null>(null);
@@ -112,18 +105,13 @@ function App() {
   const [games, setGames] = useState<
     Array<{ gameId: string; startTime: number; player1Id: string; player2Id: string; gameState: string; winner: string }>
   >([]);
-  const [opponentInfo, setOpponentInfo] = useState<{ name: string; avatar: string }>({
-    name: 'Waiting...',
-    avatar: OpponentProfile,
-  });
+  const [opponentInfo, setOpponentInfo] = useState<{ name: string; avatar: string } | null>(null);
 
-  // Player info for the current user
   const playerInfo = {
     name: user?.name || 'Player',
     avatar: user?.picture || PlayerProfile,
   };
 
-  // Memoized function to add combat log entries
   const addCombatLogEntry = useCallback((message: string, type: string) => {
     setGameState((prevState) => {
       if (!prevState) return prevState;
@@ -137,7 +125,6 @@ function App() {
     });
   }, []);
 
-  // Load players and games data
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -148,7 +135,6 @@ function App() {
           throw new Error(`HTTP error! status: ${playersResponse.status}`);
         }
         const playersData = await playersResponse.json();
-        console.log('Fetched players data:', playersData);
         setPlayers(Array.isArray(playersData) ? playersData : []);
 
         const gamesResponse = await fetch(`${SERVER_URL}/games`, {
@@ -158,7 +144,6 @@ function App() {
           throw new Error(`HTTP error! status: ${gamesResponse.status}`);
         }
         const gamesData = await gamesResponse.json();
-        console.log('Fetched games data:', gamesData);
         setGames(Array.isArray(gamesData) ? gamesData : []);
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -171,7 +156,6 @@ function App() {
     }
   }, [isAuthenticated, user]);
 
-  // Initialize socket connection and handle reconnection
   const initializeSocket = useCallback(() => {
     if (socket.connected) {
       socket.disconnect();
@@ -189,7 +173,6 @@ function App() {
     socket.io.on('reconnect', () => {
       setDialogMessage('Reconnected to server!');
       setTimeout(() => setDialogMessage(null), 3000);
-      // Rejoin the room if it still exists
       if (roomId) {
         socket.emit('reconnect', { playerId: user?.sub, roomId });
         socket.emit('joinRoom', { roomId, playerData: { playerId: user?.sub, playerName: user?.name, avatar: user?.picture } });
@@ -201,7 +184,6 @@ function App() {
     });
   }, [user, roomId]);
 
-  // Handle Socket.IO events
   useEffect(() => {
     if (isAuthenticated) {
       initializeSocket();
@@ -221,7 +203,7 @@ function App() {
         );
         setRoomId(data.roomId);
         setPlayerRole('player1');
-        console.log('State after roomCreated:', { roomId: data.roomId, playerRole: 'player1', gameState });
+        setOpponentInfo(null); // Reset opponentInfo when creating a new room
       });
 
       socket.on('playerJoined', (data: { player2: { id: string; name: string; avatar: string } }) => {
@@ -238,7 +220,7 @@ function App() {
         setDialogMessage('Successfully joined the room. Game will start soon...');
         setRoomId(data.roomId);
         setPlayerRole('player2');
-        console.log('State after joinSuccess:', { roomId: data.roomId, playerRole: 'player2', gameState });
+        setOpponentInfo(null); // Reset opponentInfo when joining a room
       });
 
       socket.on('gameStarted', (data: { player1: { name: string; avatar: string }; player2: { name: string; avatar: string } }) => {
@@ -247,30 +229,29 @@ function App() {
       });
 
       socket.on('updateOpponentInfo', (opponentData: { name: string; avatar: string }) => {
-        console.log('Updating opponent info for socket ID:', socket.id, 'opponentData:', opponentData);
-        setOpponentInfo(opponentData);
+        console.log('Received updateOpponentInfo for socket ID:', socket.id, 'opponentData:', opponentData);
+        if (opponentData && opponentData.name) {
+          setOpponentInfo(opponentData);
+          console.log('Updated opponent info:', opponentData);
+        } else {
+          console.warn('Received invalid opponent data:', opponentData);
+        }
       });
 
       socket.on(
         'gameStateUpdated',
         (data: { gameState: GameState; playerRole?: 'player1' | 'player2' }) => {
-          console.log('Game state updated received for socket ID:', socket.id, 'data:', data);
-          
-          // Always set playerRole if provided
           if (data.playerRole) {
-            console.log(`Setting playerRole to ${data.playerRole} from gameStateUpdated event`);
             setPlayerRole(data.playerRole);
           }
           
-          // Always update game state when received
           if (data.gameState) {
-            console.log('Setting gameState:', data.gameState);
             setGameState(data.gameState);
             if (data.gameState.gameStatus === 'finished') {
               const winner = data.gameState.player1.energy <= 0 ? 'player2' : 'player1';
               const winnerName =
                 data.gameState.winner?.name ||
-                (winner === 'player1' ? (playerRole === 'player1' ? playerInfo.name : opponentInfo.name) : (playerRole === 'player2' ? playerInfo.name : opponentInfo.name));
+                (winner === 'player1' ? (playerRole === 'player1' ? playerInfo.name : opponentInfo?.name) : (playerRole === 'player2' ? playerInfo.name : opponentInfo?.name));
               setDialogMessage(`Game Over! ${winnerName} wins!`);
               if (roomId && user) {
                 socket.emit('gameEnded', {
@@ -287,10 +268,7 @@ function App() {
             } else {
               setDialogMessage(null);
             }
-          } else {
-            console.error('gameStateUpdated received with no gameState:', data);
           }
-          console.log('State after gameStateUpdated:', { roomId, playerRole, gameState: data.gameState });
         }
       );
 
@@ -301,7 +279,7 @@ function App() {
           setRoomId(null);
           setPlayerRole(null);
           setGameState(null);
-          setOpponentInfo({ name: 'Waiting...', avatar: OpponentProfile });
+          setOpponentInfo(null);
         }
       });
 
@@ -311,7 +289,7 @@ function App() {
         setRoomId(null);
         setPlayerRole(null);
         setGameState(null);
-        setOpponentInfo({ name: 'Waiting...', avatar: OpponentProfile });
+        setOpponentInfo(null);
       });
 
       socket.on('connect_error', (error) => {
@@ -320,10 +298,9 @@ function App() {
         setRoomId(null);
         setPlayerRole(null);
         setGameState(null);
-        setOpponentInfo({ name: 'Waiting...', avatar: OpponentProfile });
+        setOpponentInfo(null);
       });
 
-      // Cleanup on unmount
       return () => {
         socket.off('connect');
         socket.off('roomCreated');
@@ -338,12 +315,10 @@ function App() {
         socket.disconnect();
       };
     } else {
-      // Disconnect socket if not authenticated
       socket.disconnect();
     }
   }, [isAuthenticated, user]);
 
-  // Handle player card play
   const handleCardPlay = (card: CardType) => {
     if (!gameState || !roomId || !playerRole) return;
 
@@ -354,7 +329,6 @@ function App() {
     socket.emit('cardPlayed', { roomId, card, playerRole });
   };
 
-  // Handle card defeated event
   const handleCardDefeated = useCallback((defeatedPlayerKey: 'player1' | 'player2') => {
     setGameState((prevState: GameState | null) => {
       if (!prevState) return prevState;
@@ -368,9 +342,6 @@ function App() {
     });
   }, []);
 
-  // addCombatLogEntry is already defined above
-
-  // Create a new game room
   const createRoom = () => {
     if (!isAuthenticated || !user?.sub || !user?.name) {
       setDialogMessage('Please ensure you are properly logged in.');
@@ -379,34 +350,29 @@ function App() {
     const playerData = {
       playerId: user.sub,
       playerName: user.name,
-      avatar: user.picture, // Pass Google profile picture URL
+      avatar: user.picture,
     };
     socket.emit('createRoom', playerData);
   };
 
-  // Join an existing game room
   const joinRoom = () => {
     if (!isAuthenticated || !joinRoomInput) return;
     socket.emit('joinRoom', { roomId: joinRoomInput, playerData: { playerId: user?.sub, playerName: user?.name, avatar: user?.picture } });
   };
 
-  // Render login screen if not authenticated
   if (!isAuthenticated && !authLoading) {
     return <LoginScreen />;
   }
 
-  // If auth is still loading, show a loading indicator
   if (authLoading) {
     return <div className="loading">Loading...</div>;
   }
 
-  // If game is over, show game over screen
   if (gameState && gameState.gameStatus === 'finished') {
     const playerEnergy = playerRole === 'player1' ? gameState.player1.energy : gameState.player2.energy;
     const opponentEnergy = playerRole === 'player1' ? gameState.player2.energy : gameState.player1.energy;
     const winner = gameState.player1.energy <= 0 ? 'player2' : 'player1';
 
-    // Refresh leaderboard data
     fetch(`${SERVER_URL}/games`, { credentials: 'include' })
       .then((response) => response.json())
       .then((data) => setGames(data))
@@ -420,9 +386,9 @@ function App() {
     return (
       <GameOver
         winner={winner}
-        playerRole={playerRole!} // Pass playerRole to GameOver
+        playerRole={playerRole!}
         playerInfo={playerInfo}
-        opponentInfo={opponentInfo}
+        opponentInfo={opponentInfo || { name: 'Opponent', avatar: OpponentProfile }}
         killCount={gameState.killCount}
         playerEnergy={playerEnergy}
         opponentEnergy={opponentEnergy}
@@ -430,15 +396,13 @@ function App() {
           setGameState(null);
           setRoomId(null);
           setPlayerRole(null);
-          setOpponentInfo({ name: 'Waiting...', avatar: OpponentProfile });
+          setOpponentInfo(null);
         }}
       />
     );
   }
 
-  // If game is in progress, show game board
   if (gameState && roomId && playerRole) {
-    console.log('Rendering GameBoard with gameState:', gameState, 'roomId:', roomId, 'playerRole:', playerRole);
     return (
       <DndProvider backend={HTML5Backend}>
         <div className="game-container">
@@ -447,7 +411,7 @@ function App() {
             onCardPlay={handleCardPlay}
             setGameState={setGameState}
             playerInfo={playerInfo}
-            opponentInfo={opponentInfo}
+            opponentInfo={opponentInfo || { name: 'Opponent', avatar: OpponentProfile }}
             combatLog={gameState.combatLog}
             addCombatLogEntry={addCombatLogEntry}
             killCount={gameState.killCount}
@@ -458,7 +422,7 @@ function App() {
             onSignOut={() => {
               socket.emit('logout', user?.sub);
               signOut();
-              setOpponentInfo({ name: 'Waiting...', avatar: OpponentProfile });
+              setOpponentInfo(null);
               setGameState(null);
               setRoomId(null);
               setPlayerRole(null);
@@ -469,11 +433,10 @@ function App() {
     );
   }
 
-  // If no game is in progress, show lobby
   return (
     <div className="lobby">
       <div className="user-profile">
-        <img src={user?.picture || PlayerProfile} alt="Profile" className="profile-image" />
+        <img src={playerInfo.avatar} alt="Profile" className="profile-image" />
         <h2>Welcome, {user?.name || 'Player'}!</h2>
       </div>
 
@@ -510,7 +473,7 @@ function App() {
           onSignOut={() => {
             socket.emit('logout', user?.sub);
             signOut();
-            setOpponentInfo({ name: 'Waiting...', avatar: OpponentProfile });
+            setOpponentInfo(null);
           }}
         />
       )}

@@ -391,7 +391,7 @@ button[onClick*="Copy"]:hover {
   border: 1px solid var(--border-color);
   min-height: 300px;
   width: 100%;
-  max-width: 1200px;
+  max-width: 1000px;
   margin: 0 auto;
   position: relative;
   overflow: hidden;

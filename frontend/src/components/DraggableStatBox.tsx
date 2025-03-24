@@ -103,7 +103,17 @@ const DraggableStatBox: React.FC<DraggableStatBoxProps> = ({
     >
       <div className="drag-handle" onMouseDown={handleMouseDown}>⋮⋮</div>
       <div className="stat-header">
-        <img src={avatar} alt={type === 'player' ? 'Player' : 'Opponent'} className="profile-picture" />
+        <img 
+          src={avatar || '/assets/ui/default-avatar.png'} 
+          alt={type === 'player' ? 'Player' : 'Opponent'} 
+          className="profile-picture" 
+          style={{ width: '50px', height: '50px', objectFit: 'cover', borderRadius: '10px' }}
+          onError={(e) => {
+            console.error(`Failed to load profile image: ${avatar}`);
+            e.currentTarget.src = '/assets/ui/default-avatar.png';
+          }}
+          crossOrigin="anonymous"
+        />
         <h3 className="stat-title">{title}</h3>
       </div>
       <div className="stat-value">{totalHP}</div>

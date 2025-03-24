@@ -1,3 +1,4 @@
+// SocketHandlers.js
 import { updatePlayerStats, getPlayer } from '../database/players.js';
 import { saveGame, updateGame, createGame, getGame, getAllGames } from '../database/games.js';
 import db, { updateGameWinner } from '../database/sqlite.js';
@@ -59,7 +60,7 @@ export default (io) => {
             id: player.playerId,
             name: player.playerName,
             socket: socket.id,
-            avatar: player.avatar || '/default-avatar.png',
+            avatar: playerData.avatar || player.avatar,
           },
           player2: null,
           gameState: null,
@@ -153,7 +154,7 @@ export default (io) => {
           id: player.playerId,
           name: player.playerName,
           socket: socket.id,
-          avatar: player.avatar || '/default-avatar.png',
+          avatar: playerData.avatar || player.avatar,
         };
         room.lastActivity = Date.now();
 
@@ -171,7 +172,7 @@ export default (io) => {
           player2: {
             id: player.playerId,
             name: player.playerName,
-            avatar: player.avatar || '/default-avatar.png',
+            avatar: player.avatar || '',
           },
         });
 
@@ -181,18 +182,27 @@ export default (io) => {
           player1: {
             id: room.player1.id,
             name: room.player1.name,
-            avatar: room.player1.avatar,
+            avatar: room.player1.avatar || '',
           },
         });
 
         // Emit updated opponent info to each player (send opponent's info to each player)
-        io.to(room.player1.socket).emit('updateOpponentInfo', {
+        console.log(`Emitting updateOpponentInfo to Player 1 (socket: ${room.player1.socket}) with Player 2's info:`, {
           name: room.player2.name,
           avatar: room.player2.avatar,
         });
-        io.to(room.player2.socket).emit('updateOpponentInfo', {
+        io.to(room.player1.socket).emit('updateOpponentInfo', {
+          name: room.player2.name,
+          avatar: room.player2.avatar || playerData.avatar || '',
+        });
+
+        console.log(`Emitting updateOpponentInfo to Player 2 (socket: ${room.player2.socket}) with Player 1's info:`, {
           name: room.player1.name,
           avatar: room.player1.avatar,
+        });
+        io.to(room.player2.socket).emit('updateOpponentInfo', {
+          name: room.player1.name,
+          avatar: room.player1.avatar || '',
         });
 
         // Initialize game state
@@ -318,11 +328,11 @@ export default (io) => {
         io.to(roomId).emit('gameStarted', {
           player1: {
             name: room.player1.name,
-            avatar: room.player1.avatar,
+            avatar: room.player1.avatar || '',
           },
           player2: {
             name: room.player2.name,
-            avatar: room.player2.avatar,
+            avatar: room.player2.avatar || '',
           },
         });
 
@@ -334,6 +344,64 @@ export default (io) => {
       } catch (error) {
         console.error('Error joining room:', error);
         socket.emit('error', 'Failed to join room');
+      }
+    });
+
+    // Handle reconnection
+    socket.on('reconnect', ({ playerId, roomId }) => {
+      console.log(`Player ${playerId} is attempting to reconnect to room ${roomId}`);
+      const room = activeRooms.get(roomId);
+      if (!room) {
+        socket.emit('error', 'Room no longer exists');
+        return;
+      }
+
+      if (room.player1.id === playerId) {
+        room.player1.socket = socket.id;
+        socket.join(roomId);
+        if (room.player2) {
+          console.log(`Re-emitting updateOpponentInfo to Player 1 (socket: ${room.player1.socket}) with Player 2's info:`, {
+            name: room.player2.name,
+            avatar: room.player2.avatar || '',
+          });
+          io.to(room.player1.socket).emit('updateOpponentInfo', {
+            name: room.player2.name,
+            avatar: room.player2.avatar || '',
+          });
+        }
+      } else if (room.player2?.id === playerId) {
+        room.player2.socket = socket.id;
+        socket.join(roomId);
+        console.log(`Re-emitting updateOpponentInfo to Player 2 (socket: ${room.player2.socket}) with Player 1's info:`, {
+          name: room.player1.name,
+          avatar: room.player1.avatar || '',
+        });
+        io.to(room.player2.socket).emit('updateOpponentInfo', {
+          name: room.player1.name,
+          avatar: room.player1.avatar || '',
+        });
+      }
+
+      if (room.gameState) {
+        const playerRole = room.player1.id === playerId ? 'player1' : 'player2';
+        io.to(socket.id).emit('gameStateUpdated', {
+          gameState: {
+            ...room.gameState.shared,
+            [playerRole === 'player1' ? 'player2' : 'player1']: {
+              ...room.gameState.shared[playerRole === 'player1' ? 'player2' : 'player1'],
+              hand: room.gameState.hands[playerRole === 'player1' ? 'player2' : 'player1'].map((_, index) => ({
+                id: `placeholder-${playerRole === 'player1' ? 'p2' : 'p1'}-${index}-${Date.now()}`,
+                name: 'Hidden Card',
+                attack: 0,
+                defense: 0,
+                hp: 0,
+                maxHp: 0,
+                imageUrl: '/monsters/card-back.png',
+              })),
+            },
+          },
+          playerRole,
+        });
       }
     });
 
