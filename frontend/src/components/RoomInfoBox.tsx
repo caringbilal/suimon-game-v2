@@ -44,7 +44,7 @@ const RoomInfoBox: React.FC<RoomInfoBoxProps> = ({ roomId, playerRole, gameState
         {gameState && (
           <p>
             Turn: <span className={gameState.currentTurn === 'player' ? 'host' : 'playing'}>
-              {gameState.currentTurn === 'player' ? 'Player 1' : 'Player 2'}
+              {gameState.currentTurn === 'player' ? 'Player 1' : gameState.players?.opponent?.name || 'Player 2'}
             </span>
           </p>
         )}

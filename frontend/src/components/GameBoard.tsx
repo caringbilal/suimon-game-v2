@@ -371,11 +371,10 @@ export default React.memo<GameBoardProps>(
       return card;
     };
 
-    // Fallback for opponent name
-    // Ensure we always display the actual opponent name when available
+    // Always use the actual opponent name when available
   const opponentDisplayName = opponentInfo.name && opponentInfo.name !== 'Waiting...' && opponentInfo.name !== 'Opponent'
       ? opponentInfo.name 
-      : playerRole === 'player1' ? 'Player 2' : 'Player 1';
+      : playerRole === 'player1' ? opponentInfo.name || 'Player 2' : opponentInfo.name || 'Player 1';
 
     return (
       <div className="game-board">

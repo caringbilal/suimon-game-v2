@@ -152,7 +152,7 @@ export default (io) => {
 
         room.player2 = {
           id: player.playerId,
-          name: player.playerName,
+          name: playerData.playerName || player.playerName,
           socket: socket.id,
           avatar: playerData.avatar || player.avatar,
         };
@@ -171,7 +171,7 @@ export default (io) => {
         io.to(room.player1.socket).emit('playerJoined', {
           player2: {
             id: player.playerId,
-            name: player.playerName,
+            name: playerData.playerName || player.playerName,
             avatar: player.avatar || '',
           },
         });

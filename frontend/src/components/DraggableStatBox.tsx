@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import '../styles/draggable-stats.css';
+import defaultAvatar from '../assets/ui/default-avatar.png';
 
 interface DraggableStatBoxProps {
   type: 'player' | 'opponent';
@@ -104,13 +105,13 @@ const DraggableStatBox: React.FC<DraggableStatBoxProps> = ({
       <div className="drag-handle" onMouseDown={handleMouseDown}>⋮⋮</div>
       <div className="stat-header">
         <img 
-          src={avatar || '/assets/ui/default-avatar.png'} 
+          src={avatar || defaultAvatar} 
           alt={type === 'player' ? 'Player' : 'Opponent'} 
           className="profile-picture" 
           style={{ width: '50px', height: '50px', objectFit: 'cover', borderRadius: '10px' }}
           onError={(e) => {
             console.error(`Failed to load profile image: ${avatar}`);
-            e.currentTarget.src = '/assets/ui/default-avatar.png';
+            e.currentTarget.src = defaultAvatar;
           }}
           crossOrigin="anonymous"
         />
