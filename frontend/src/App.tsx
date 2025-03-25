@@ -399,21 +399,24 @@ function App() {
       .catch((error) => console.error('Error fetching players:', error));
 
     return (
-      <GameOver
-        winner={winner}
-        playerRole={playerRole!}
-        playerInfo={playerInfo}
-        opponentInfo={opponentInfo || { name: 'Opponent', avatar: OpponentProfile }}
-        killCount={gameState.killCount}
-        playerEnergy={playerEnergy}
-        opponentEnergy={opponentEnergy}
-        onPlayAgain={() => {
-          setGameState(null);
-          setRoomId(null);
-          setPlayerRole(null);
-          setOpponentInfo(null);
-        }}
-      />
+      <div className="game-over-container">
+        <ParticlesBackground className="particles game-over-particles" variant="green" />
+        <GameOver
+          winner={winner}
+          playerRole={playerRole!}
+          playerInfo={playerInfo}
+          opponentInfo={opponentInfo || { name: 'Opponent', avatar: OpponentProfile }}
+          killCount={gameState.killCount}
+          playerEnergy={playerEnergy}
+          opponentEnergy={opponentEnergy}
+          onPlayAgain={() => {
+            setGameState(null);
+            setRoomId(null);
+            setPlayerRole(null);
+            setOpponentInfo(null);
+          }}
+        />
+      </div>
     );
   }
 
@@ -421,6 +424,7 @@ function App() {
     return (
       <DndProvider backend={HTML5Backend}>
         <div className="game-container">
+          <ParticlesBackground className="particles game-particles" variant="green" />
           <GameBoard
             gameState={gameState}
             onCardPlay={handleCardPlay}
@@ -450,14 +454,13 @@ function App() {
 
   return (
     <div className="lobby">
+      <ParticlesBackground className="particles lobby-particles" />
       <div className="user-profile">
-        <img src={playerInfo.avatar} alt="Profile" className="profile-image" />
+        <img src={playerInfo.avatar} alt="Profile" className="profile-image" crossOrigin="anonymous" />
         <h2>Welcome, {user?.name || 'Player'}!</h2>
       </div>
 
       <h1>Suimon Card Game</h1>
-
-      <LeaderboardTable players={players} games={games} />
       <div className="room-controls">
         <button onClick={createRoom} className="create-room-btn">
           Create New Game
@@ -493,6 +496,8 @@ function App() {
         />
       )}
       {dialogMessage && <div className="dialog-message">{dialogMessage}</div>}
+      <LeaderboardTable players={players} games={games} />
+      
     </div>
   );
 }

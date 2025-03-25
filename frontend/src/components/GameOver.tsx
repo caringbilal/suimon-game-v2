@@ -38,7 +38,7 @@ const GameOver: React.FC<GameOverProps> = ({
         </p>
         <div className="game-over-stats">
           <div className="stat-item">
-            <img src={playerInfo.avatar} alt="Player" className="profile-picture" />
+            <img src={playerInfo.avatar} alt="Player" className="profile-picture" crossOrigin="anonymous" />
             <div className="stat-details">
               <span className="stat-label">{playerInfo.name}</span>
               <span className="stat-value">Kills: {playerRole === 'player1' ? killCount.player1 : killCount.player2}</span>
@@ -46,7 +46,7 @@ const GameOver: React.FC<GameOverProps> = ({
             </div>
           </div>
           <div className="stat-item">
-            <img src={opponentInfo.avatar} alt="Opponent" className="profile-picture" />
+            <img src={opponentInfo.avatar} alt="Opponent" className="profile-picture" crossOrigin="anonymous" />
             <div className="stat-details">
               <span className="stat-label">{opponentInfo.name}</span>
               <span className="stat-value">Kills: {playerRole === 'player1' ? killCount.player2 : killCount.player1}</span>

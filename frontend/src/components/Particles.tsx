@@ -5,9 +5,10 @@ import { loadSlim } from 'tsparticles-slim';
 
 interface ParticlesProps {
   className?: string;
+  variant?: 'blue' | 'green';
 }
 
-const ParticlesBackground: React.FC<ParticlesProps> = ({ className }) => {
+const ParticlesBackground: React.FC<ParticlesProps> = ({ className, variant = 'blue' }) => {
   const particlesInit = useCallback(async (engine: Engine) => {
     await loadSlim(engine);
   }, []);
@@ -33,7 +34,9 @@ const ParticlesBackground: React.FC<ParticlesProps> = ({ className }) => {
             },
           },
           color: {
-            value: ["#16213e", "#1a1a2e", "#0f3460", "#4285f4"],
+            value: variant === 'blue' 
+              ? ["#2196F3", "#1976D2", "#1565C0", "#0D47A1"]
+              : ["#4CAF50", "#45a049", "#388e3c", "#2e7d32"],
           },
           shape: {
             type: "circle",

@@ -128,6 +128,33 @@
   overflow: hidden;
 }
 
+.lobby {
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  padding: 20px;
+  color: var(--text-color);
+  position: relative;
+  overflow: hidden;
+}
+
+.lobby .particles {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0; /* Behind the lobby content */
+}
+
+.lobby-particles {
+  pointer-events: none; /* Allow clicking through particles */
+}
+
 .background-rectangle {
   position: fixed;
   top: 50%;
@@ -156,6 +183,44 @@
   flex-direction: column;
   align-items: center;
   gap: 20px;
+}
+
+.game-container .particles {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0; /* Behind the game content */
+}
+
+.game-particles {
+  pointer-events: none; /* Allow clicking through particles */
+}
+
+.game-over-container {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  z-index: 1;
+  overflow: hidden;
+}
+
+.game-over-container .particles {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0; /* Behind the game over content */
+}
+
+.game-over-particles {
+  pointer-events: none; /* Allow clicking through particles */
 }
 
 .logout-button-game {
