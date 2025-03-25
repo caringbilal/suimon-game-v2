@@ -11,6 +11,7 @@ export const initializeGamesTable = () => {
         player2Id TEXT,
         gameState TEXT,
         winner TEXT,
+        winnerName TEXT,
         player1Data TEXT,
         player2Data TEXT,
         status TEXT,
@@ -36,9 +37,9 @@ export const createGame = (game) => {
   return new Promise((resolve, reject) => {
     const { gameId, player1Id, player2Id, gameState, startTime, status } = game;
     db.run(
-      `INSERT INTO games (gameId, startTime, player1Id, player2Id, gameState, status)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [gameId, startTime, player1Id, player2Id, gameState, status],
+      `INSERT INTO games (gameId, startTime, player1Id, player2Id, gameState, status, winnerName)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [gameId, startTime, player1Id, player2Id, gameState, status, null],
       function (err) {
         if (err) {
           console.error('Error creating game:', err);
@@ -122,11 +123,12 @@ export const saveGame = (gameState) => {
     const player1Id = gameState.players.player.id;
     const player2Id = gameState.players.opponent.id;
     const status = 'finished';
+    const winnerName = gameState.winner?.name || null;
 
     db.run(
-      `INSERT INTO games (gameId, startTime, player1Id, player2Id, gameState, status)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [gameId, startTime, player1Id, player2Id, JSON.stringify(gameState), status],
+      `INSERT INTO games (gameId, startTime, player1Id, player2Id, gameState, status, winnerName)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [gameId, startTime, player1Id, player2Id, JSON.stringify(gameState), status, winnerName],
       function (err) {
         if (err) {
           console.error('Error saving game:', err);

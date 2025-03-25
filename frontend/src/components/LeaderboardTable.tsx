@@ -15,6 +15,7 @@ interface Game {
   player2Id: string;
   gameState: string;
   winner: string;
+  winnerName?: string;
 }
 
 interface LeaderboardTableProps {
@@ -28,14 +29,17 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ players, games }) =
   const [currentPlayerPage, setCurrentPlayerPage] = useState(1);
   const rowsPerPage = 7;
   
+  // Sort games by startTime in descending order (newest first)
+  const sortedGames = [...games].sort((a, b) => b.startTime - a.startTime);
+  
   // Calculate total pages
-  const totalGamePages = Math.ceil(games.length / rowsPerPage);
+  const totalGamePages = Math.ceil(sortedGames.length / rowsPerPage);
   const totalPlayerPages = Math.ceil(players.length / rowsPerPage);
   
   // Get current page data
   const indexOfLastGame = currentGamePage * rowsPerPage;
   const indexOfFirstGame = indexOfLastGame - rowsPerPage;
-  const currentGames = games.slice(indexOfFirstGame, indexOfLastGame);
+  const currentGames = sortedGames.slice(indexOfFirstGame, indexOfLastGame);
   
   const indexOfLastPlayer = currentPlayerPage * rowsPerPage;
   const indexOfFirstPlayer = indexOfLastPlayer - rowsPerPage;
@@ -107,7 +111,8 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ players, games }) =
               // Ensure we display actual player names instead of generic 'Player 2'
               const player1Name = player1?.playerName || 'Unknown';
               const player2Name = player2?.playerName || 'Unknown';
-              const winnerName = winner?.playerName || (game.gameState === 'finished' ? 'Unknown' : 'In Progress');
+              // Use winnerName from database if available, otherwise fall back to finding the player
+              const winnerName = game.winnerName || winner?.playerName || (game.gameState === 'finished' ? 'Unknown' : 'In Progress');
               
               return (
                 <tr key={game.gameId}>

@@ -16,6 +16,8 @@ import { useAuth } from './context/AuthContext';
 import LogoutButton from '@components/LogoutButton';
 import LeaderboardTable from '@components/LeaderboardTable';
 import RoomInfoBox from '@components/RoomInfoBox';
+import ParticlesBackground from '@components/Particles';
+import { Engine } from 'tsparticles-engine';
 
 const SERVER_URL = process.env.REACT_APP_API_URL || 'http://localhost:3002';
 
@@ -27,6 +29,7 @@ const socket: Socket = io(SERVER_URL, {
 
 const LoginScreen: React.FC = () => {
   const { isLoading, error } = useAuth();
+  const [isFadingOut, setIsFadingOut] = useState(false);
 
   const handleGoogleSuccess = async (credentialResponse: any) => {
     try {
@@ -58,8 +61,14 @@ const LoginScreen: React.FC = () => {
         console.error('Error registering player:', error);
       }
 
-      localStorage.setItem('google_credential', credentialResponse.credential);
-      window.location.reload();
+      // Trigger the fade-out animation
+      setIsFadingOut(true);
+      
+      // Wait for the animation to complete before reloading
+      setTimeout(() => {
+        localStorage.setItem('google_credential', credentialResponse.credential);
+        window.location.reload();
+      }, 1000);
     } catch (error) {
       console.error('Error processing Google sign-in:', error);
     }
@@ -67,6 +76,7 @@ const LoginScreen: React.FC = () => {
 
   return (
     <div className="login-container">
+      <ParticlesBackground className={`particles ${isFadingOut ? 'particles-fade-out' : ''}`} />
       <div className="login-card">
         <h1>Suimon Card Game</h1>
         <p>Sign in to play and track your progress</p>

@@ -225,6 +225,8 @@ export default React.memo<GameBoardProps>(
       const loserEnergyLoss = Math.min(baseEnergyLoss * 2, gameState[roundLoser].energy);
 
       let additionalLogEntries: CombatLogEntry[] = [];
+      let nextTurn: 'player1' | 'player2' = roundLoser as 'player1' | 'player2'; // Default to giving the loser the next turn
+      
       if (player2Card.hp <= 0) {
         additionalLogEntries = [
           {
@@ -234,6 +236,7 @@ export default React.memo<GameBoardProps>(
           },
         ];
         onCardDefeated?.('player2');
+        nextTurn = 'player2'; // Explicitly set next turn to player2 when their card is defeated
       } else if (player1Card.hp <= 0) {
         additionalLogEntries = [
           {
@@ -243,6 +246,7 @@ export default React.memo<GameBoardProps>(
           },
         ];
         onCardDefeated?.('player1');
+        nextTurn = 'player1'; // Explicitly set next turn to player1 when their card is defeated
       } else {
         additionalLogEntries = [
           {
@@ -251,6 +255,7 @@ export default React.memo<GameBoardProps>(
             type: 'combat',
           },
         ];
+        // Keep nextTurn as roundLoser when both cards survive
       }
 
       const updatedGameState: GameState = {
@@ -267,7 +272,7 @@ export default React.memo<GameBoardProps>(
           player1: player1Card.hp > 0 ? [player1Card] : [],
           player2: player2Card.hp > 0 ? [player2Card] : [],
         },
-        currentTurn: roundLoser,
+        currentTurn: nextTurn, // Use the calculated nextTurn value
         combatLog: [...baseCombatLog, ...additionalLogEntries],
         killCount: {
           player1: player2Card.hp <= 0 ? gameState.killCount.player1 + 1 : gameState.killCount.player1,

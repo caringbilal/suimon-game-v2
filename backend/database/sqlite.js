@@ -138,6 +138,19 @@ const initializeDatabase = async () => {
 
     await new Promise((resolve, reject) => {
       db.run(
+        `ALTER TABLE games ADD COLUMN winnerName TEXT`,
+        (err) => {
+          if (err && !err.message.includes('duplicate column name')) {
+            reject(err);
+          } else {
+            resolve();
+          }
+        }
+      );
+    });
+
+    await new Promise((resolve, reject) => {
+      db.run(
         `UPDATE games SET status = 'finished' WHERE status IS NULL AND winner IS NOT NULL`,
         (err) => {
           if (err) reject(err);
