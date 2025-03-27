@@ -63,9 +63,16 @@ export default React.memo<GameBoardProps>(
     const [defendingCard, setDefendingCard] = useState<string | null>(null);
     const [error, setError] = useState<string>('');
     const [imagesLoaded, setImagesLoaded] = useState<boolean>(false);
+    const [avatarLoadError, setAvatarLoadError] = useState<boolean>(false);
 
     const myData = playerRole === 'player1' ? gameState.player1 : gameState.player2;
     const opponentData = playerRole === 'player1' ? gameState.player2 : gameState.player1;
+
+    // Handle avatar loading errors by using default profile
+    const handleAvatarError = () => {
+      setAvatarLoadError(true);
+      console.error('Failed to load avatar image');
+    };
 
     useEffect(() => {
       const preloadImages = async () => {
@@ -468,13 +475,12 @@ export default React.memo<GameBoardProps>(
               alt={opponentDisplayName} 
               className="profile-picture" 
               onError={(e) => {
-                console.error(`Failed to load opponent profile image: ${opponentInfo && opponentInfo.avatar ? opponentInfo.avatar : 'undefined'}`);
+                console.error(`Failed to load opponent profile image: ${opponentInfo && opponentInfo.avatar ? opponentInfo.avatar : 'undefined'}`); 
                 e.currentTarget.src = defaultAvatar;
               }}
               style={{ width: '50px', height: '50px', objectFit: 'cover', borderRadius: '10px' }}
               crossOrigin="anonymous"
-              // Force image reload when avatar changes by adding a timestamp
-              key={`opponent-avatar-${Date.now()}`}
+              referrerPolicy="no-referrer"
             />
             <span className="player-name">
               {opponentDisplayName}
@@ -556,8 +562,7 @@ export default React.memo<GameBoardProps>(
               }}
               style={{ width: '50px', height: '50px', objectFit: 'cover', borderRadius: '10px' }}
               crossOrigin="anonymous"
-              // Force image reload when avatar changes by adding a timestamp
-              key={`player-avatar-${Date.now()}`}
+              referrerPolicy="no-referrer"
             />
             <span className="player-name">
               {playerInfo.name}

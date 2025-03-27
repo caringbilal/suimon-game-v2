@@ -114,6 +114,7 @@ const DraggableStatBox: React.FC<DraggableStatBoxProps> = ({
             e.currentTarget.src = defaultAvatar;
           }}
           crossOrigin="anonymous"
+          referrerPolicy="no-referrer"
         />
         <h3 className="stat-title">{title}</h3>
       </div>

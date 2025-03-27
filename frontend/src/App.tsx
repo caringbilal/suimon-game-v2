@@ -424,7 +424,6 @@ function App() {
     return (
       <DndProvider backend={HTML5Backend}>
         <div className="game-container">
-          <ParticlesBackground className="particles game-particles" variant="green" />
           <GameBoard
             gameState={gameState}
             onCardPlay={handleCardPlay}
@@ -456,7 +455,7 @@ function App() {
     <div className="lobby">
       <ParticlesBackground className="particles lobby-particles" />
       <div className="user-profile">
-        <img src={playerInfo.avatar} alt="Profile" className="profile-image" crossOrigin="anonymous" />
+        <img src={playerInfo.avatar} alt="Profile" className="profile-image" crossOrigin="anonymous" referrerPolicy="no-referrer" />
         <h2>Welcome, {user?.name || 'Player'}!</h2>
       </div>
 
