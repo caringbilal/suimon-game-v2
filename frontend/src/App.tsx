@@ -18,6 +18,21 @@ import LeaderboardTable from '@components/LeaderboardTable';
 import RoomInfoBox from '@components/RoomInfoBox';
 import ParticlesBackground from '@components/Particles';
 import { Engine } from 'tsparticles-engine';
+import { SuiClientProvider, WalletProvider } from '@mysten/dapp-kit';
+import { getFullnodeUrl } from '@mysten/sui.js/client';
+import { SuiWalletProvider } from './context/SuiWalletContext';
+import WalletConnection from './components/WalletConnection';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+type NetworkConfiguration = {
+  url: string;
+};
+
+const networks: Record<string, NetworkConfiguration> = {
+  testnet: { url: getFullnodeUrl('testnet') },
+  mainnet: { url: getFullnodeUrl('mainnet') },
+  devnet: { url: getFullnodeUrl('devnet') }
+};
 
 const SERVER_URL = process.env.REACT_APP_API_URL || 'http://localhost:3002';
 
@@ -75,29 +90,39 @@ const LoginScreen: React.FC = () => {
   };
 
   return (
-    <div className="login-container">
-      <ParticlesBackground className={`particles ${isFadingOut ? 'particles-fade-out' : ''}`} />
-      <div className="login-card">
-        <h1>Suimon Card Game</h1>
-        <p>Sign in to play and track your progress</p>
+    <QueryClientProvider client={queryClient}>
+      <SuiClientProvider networks={networks} defaultNetwork="testnet">
+        <WalletProvider>
+          <SuiWalletProvider>
+          <div className="login-container">
+            <ParticlesBackground className={`particles ${isFadingOut ? 'particles-fade-out' : ''}`} />
+            <div className="login-card">
+              <h1>Suimon Card Game</h1>
+              <p>Sign in to play and track your progress</p>
 
-        <div className="google-login-wrapper">
-          <GoogleLogin
-            onSuccess={handleGoogleSuccess}
-            onError={() => console.error('Login Failed')}
-            theme="filled_blue"
-            size="large"
-            shape="pill"
-            text="continue_with"
-            useOneTap
-          />
-        </div>
+              <div className="google-login-wrapper">
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={() => console.error('Login Failed')}
+                  theme="filled_blue"
+                  size="large"
+                  shape="pill"
+                  text="continue_with"
+                  useOneTap
+                />
+              </div>
 
-        {error && <p className="error-message">{error}</p>}
-      </div>
-    </div>
+              {error && <p className="error-message">{error}</p>}
+            </div>
+          </div>
+          </SuiWalletProvider>
+        </WalletProvider>
+      </SuiClientProvider>
+    </QueryClientProvider>
   );
 };
+
+const queryClient = new QueryClient();
 
 function App() {
   const MAX_ENERGY = 700;
@@ -399,55 +424,67 @@ function App() {
       .catch((error) => console.error('Error fetching players:', error));
 
     return (
-      <div className="game-over-container">
-        <ParticlesBackground className="particles game-over-particles" variant="green" />
-        <GameOver
-          winner={winner}
-          playerRole={playerRole!}
-          playerInfo={playerInfo}
-          opponentInfo={opponentInfo || { name: 'Opponent', avatar: OpponentProfile }}
-          killCount={gameState.killCount}
-          playerEnergy={playerEnergy}
-          opponentEnergy={opponentEnergy}
-          onPlayAgain={() => {
-            setGameState(null);
-            setRoomId(null);
-            setPlayerRole(null);
-            setOpponentInfo(null);
-          }}
-        />
-      </div>
+      <SuiClientProvider networks={networks} defaultNetwork="testnet">
+        <WalletProvider>
+          <SuiWalletProvider>
+            <div className="game-over-container">
+              <ParticlesBackground className="particles game-over-particles" variant="green" />
+              <GameOver
+                winner={winner}
+                playerRole={playerRole!}
+                playerInfo={playerInfo}
+                opponentInfo={opponentInfo || { name: 'Opponent', avatar: OpponentProfile }}
+                killCount={gameState.killCount}
+                playerEnergy={playerEnergy}
+                opponentEnergy={opponentEnergy}
+                onPlayAgain={() => {
+                  setGameState(null);
+                  setRoomId(null);
+                  setPlayerRole(null);
+                  setOpponentInfo(null);
+                }}
+              />
+            </div>
+          </SuiWalletProvider>
+        </WalletProvider>
+      </SuiClientProvider>
     );
   }
 
   if (gameState && roomId && playerRole) {
     return (
-      <DndProvider backend={HTML5Backend}>
-        <div className="game-container">
-          <GameBoard
-            gameState={gameState}
-            onCardPlay={handleCardPlay}
-            setGameState={setGameState}
-            playerInfo={playerInfo}
-            opponentInfo={opponentInfo || { name: 'Opponent', avatar: OpponentProfile }}
-            combatLog={gameState.combatLog}
-            addCombatLogEntry={addCombatLogEntry}
-            killCount={gameState.killCount}
-            playerRole={playerRole}
-            roomId={roomId}
-            socket={socket}
-            onCardDefeated={(defeatedPlayerKey) => handleCardDefeated(defeatedPlayerKey)}
-            onSignOut={() => {
-              socket.emit('logout', user?.sub);
-              signOut();
-              setOpponentInfo(null);
-              setGameState(null);
-              setRoomId(null);
-              setPlayerRole(null);
-            }}
-          />
-        </div>
-      </DndProvider>
+      <SuiClientProvider networks={networks} defaultNetwork="testnet">
+        <WalletProvider>
+          <SuiWalletProvider>
+            <DndProvider backend={HTML5Backend}>
+              <div className="game-container">
+                <GameBoard
+                  gameState={gameState}
+                  onCardPlay={handleCardPlay}
+                  setGameState={setGameState}
+                  playerInfo={playerInfo}
+                  opponentInfo={opponentInfo || { name: 'Opponent', avatar: OpponentProfile }}
+                  combatLog={gameState.combatLog}
+                  addCombatLogEntry={addCombatLogEntry}
+                  killCount={gameState.killCount}
+                  playerRole={playerRole}
+                  roomId={roomId}
+                  socket={socket}
+                  onCardDefeated={(defeatedPlayerKey) => handleCardDefeated(defeatedPlayerKey)}
+                  onSignOut={() => {
+                    socket.emit('logout', user?.sub);
+                    signOut();
+                    setOpponentInfo(null);
+                    setGameState(null);
+                    setRoomId(null);
+                    setPlayerRole(null);
+                  }}
+                />
+              </div>
+            </DndProvider>
+          </SuiWalletProvider>
+        </WalletProvider>
+      </SuiClientProvider>
     );
   }
 

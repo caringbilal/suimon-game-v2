@@ -1,0 +1,96 @@
+.game-options {
+  background: rgba(0, 0, 0, 0.7);
+  border-radius: 12px;
+  padding: 2rem;
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.token-selector {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.token-button {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid transparent;
+  border-radius: 8px;
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.token-button:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.token-button.active {
+  border-color: #00ff9d;
+  background: rgba(0, 255, 157, 0.1);
+}
+
+.token-button .balance {
+  font-size: 0.9rem;
+  color: #888;
+}
+
+.stake-options {
+  text-align: center;
+}
+
+.stake-options h3 {
+  color: #fff;
+  margin-bottom: 1.5rem;
+}
+
+.options-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+}
+
+.stake-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  background: rgba(0, 255, 157, 0.1);
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.stake-button:hover:not(:disabled) {
+  background: rgba(0, 255, 157, 0.2);
+  transform: translateY(-2px);
+}
+
+.stake-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.gas-fee {
+  font-size: 0.8rem;
+  color: #888;
+}
+
+.connect-wallet-prompt {
+  text-align: center;
+  color: #888;
+  margin-top: 2rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+}

@@ -26,7 +26,7 @@ const initializeDatabase = async () => {
       });
     });
 
-    // Create players table with wins and losses columns
+    // Create players table with wins, losses, and wallet address columns
     await new Promise((resolve, reject) => {
       db.run(
         `CREATE TABLE IF NOT EXISTS players (
@@ -36,11 +36,56 @@ const initializeDatabase = async () => {
           updatedAt INTEGER NOT NULL,
           wins INTEGER DEFAULT 0,
           losses INTEGER DEFAULT 0,
-          avatar TEXT
+          avatar TEXT,
+          walletAddress TEXT,
+          walletBalance TEXT DEFAULT '0',
+          suimonBalance TEXT DEFAULT '0'
         )`,
         (err) => {
           if (err) reject(err);
           else resolve();
+        }
+      );
+    });
+
+    // Add wallet address column if it doesn't exist
+    await new Promise((resolve, reject) => {
+      db.run(
+        `ALTER TABLE players ADD COLUMN walletAddress TEXT`,
+        (err) => {
+          if (err && !err.message.includes('duplicate column name')) {
+            reject(err);
+          } else {
+            resolve();
+          }
+        }
+      );
+    });
+
+    // Add wallet balance column if it doesn't exist
+    await new Promise((resolve, reject) => {
+      db.run(
+        `ALTER TABLE players ADD COLUMN walletBalance TEXT DEFAULT '0'`,
+        (err) => {
+          if (err && !err.message.includes('duplicate column name')) {
+            reject(err);
+          } else {
+            resolve();
+          }
+        }
+      );
+    });
+
+    // Add SUIMON token balance column if it doesn't exist
+    await new Promise((resolve, reject) => {
+      db.run(
+        `ALTER TABLE players ADD COLUMN suimonBalance TEXT DEFAULT '0'`,
+        (err) => {
+          if (err && !err.message.includes('duplicate column name')) {
+            reject(err);
+          } else {
+            resolve();
+          }
         }
       );
     });
