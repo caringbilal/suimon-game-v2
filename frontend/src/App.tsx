@@ -1,4 +1,3 @@
-// App.tsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
@@ -14,11 +13,9 @@ import { io, Socket } from 'socket.io-client';
 import PlayerProfile from './assets/ui/Player_Profile.jpg';
 import OpponentProfile from './assets/ui/AIPlayer_Profile.jpg';
 import { useAuth } from './context/AuthContext';
-import LogoutButton from '@components/LogoutButton';
 import LeaderboardTable from '@components/LeaderboardTable';
 import RoomInfoBox from '@components/RoomInfoBox';
 import ParticlesBackground from '@components/Particles';
-import { Engine } from 'tsparticles-engine';
 import { SuiClientProvider, WalletProvider } from '@mysten/dapp-kit';
 import { getFullnodeUrl } from '@mysten/sui.js/client';
 import { SuiWalletProvider, useSuiWallet } from './context/SuiWalletContext';
@@ -26,15 +23,18 @@ import WalletConnection from './components/WalletConnection';
 import GameOptions from './components/GameOptions';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-type NetworkConfiguration = {
-  url: string;
+// Define the network type explicitly
+type SuiNetwork = 'mainnet' | 'testnet' | 'devnet' | 'localnet';
+
+// Define network configurations directly without createNetworkConfig
+const networks = {
+  testnet: { url: getFullnodeUrl('testnet' as SuiNetwork), name: 'Sui Testnet' },
+  mainnet: { url: getFullnodeUrl('mainnet' as SuiNetwork), name: 'Sui Mainnet' },
+  devnet: { url: getFullnodeUrl('devnet' as SuiNetwork), name: 'Sui Devnet' },
 };
 
-const networks: Record<string, NetworkConfiguration> = {
-  testnet: { url: getFullnodeUrl('testnet') },
-  mainnet: { url: getFullnodeUrl('mainnet') },
-  devnet: { url: getFullnodeUrl('devnet') }
-};
+// Create a single QueryClient instance
+const queryClient = new QueryClient();
 
 const SERVER_URL = process.env.REACT_APP_API_URL || 'http://localhost:3002';
 
@@ -78,10 +78,7 @@ const LoginScreen: React.FC = () => {
         console.error('Error registering player:', error);
       }
 
-      // Trigger the fade-out animation
       setIsFadingOut(true);
-      
-      // Wait for the animation to complete before reloading
       setTimeout(() => {
         localStorage.setItem('google_credential', credentialResponse.credential);
         window.location.reload();
@@ -92,44 +89,30 @@ const LoginScreen: React.FC = () => {
   };
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <SuiClientProvider networks={networks} defaultNetwork="testnet">
-        <WalletProvider>
-          <SuiWalletProvider>
-          <div className="login-container">
-            <ParticlesBackground className={`particles ${isFadingOut ? 'particles-fade-out' : ''}`} />
-            <div className="login-card">
-              <h1>Suimon Card Game</h1>
-              <p>Sign in to play and track your progress</p>
-
-              <div className="google-login-wrapper">
-                <GoogleLogin
-                  onSuccess={handleGoogleSuccess}
-                  onError={() => console.error('Login Failed')}
-                  theme="filled_blue"
-                  size="large"
-                  shape="pill"
-                  text="continue_with"
-                  useOneTap
-                />
-              </div>
-
-              {error && <p className="error-message">{error}</p>}
-            </div>
-          </div>
-          </SuiWalletProvider>
-        </WalletProvider>
-      </SuiClientProvider>
-    </QueryClientProvider>
+    <div className="login-container">
+      <ParticlesBackground className={`particles ${isFadingOut ? 'particles-fade-out' : ''}`} />
+      <div className="login-card">
+        <h1>Suimon Card Game</h1>
+        <p>Sign in to play and track your progress</p>
+        <div className="google-login-wrapper">
+          <GoogleLogin
+            onSuccess={handleGoogleSuccess}
+            onError={() => console.error('Login Failed')}
+            theme="filled_blue"
+            size="large"
+            shape="pill"
+            text="continue_with"
+            useOneTap
+          />
+        </div>
+        {error && <p className="error-message">{error}</p>}
+      </div>
+    </div>
   );
 };
 
-const queryClient = new QueryClient();
-
 function App() {
   const MAX_ENERGY = 700;
-  const queryClient = new QueryClient();
-
   const { user, isAuthenticated, isLoading: authLoading, signOut } = useAuth();
   const { isConnected, suiBalance, suimonBalance } = useSuiWallet();
 
@@ -158,8 +141,8 @@ function App() {
         ...prevState,
         combatLog: [
           ...prevState.combatLog,
-          { timestamp: Date.now(), message, type }
-        ]
+          { timestamp: Date.now(), message, type },
+        ],
       };
     });
   }, []);
@@ -242,7 +225,7 @@ function App() {
         );
         setRoomId(data.roomId);
         setPlayerRole('player1');
-        setOpponentInfo(null); // Reset opponentInfo when creating a new room
+        setOpponentInfo(null);
       });
 
       socket.on('playerJoined', (data: { player2: { id: string; name: string; avatar: string } }) => {
@@ -259,7 +242,7 @@ function App() {
         setDialogMessage('Successfully joined the room. Game will start soon...');
         setRoomId(data.roomId);
         setPlayerRole('player2');
-        setOpponentInfo(null); // Reset opponentInfo when joining a room
+        setOpponentInfo(null);
       });
 
       socket.on('gameStarted', (data: { player1: { name: string; avatar: string }; player2: { name: string; avatar: string } }) => {
@@ -270,11 +253,10 @@ function App() {
       socket.on('updateOpponentInfo', (opponentData: { name: string; avatar: string }) => {
         console.log('Received updateOpponentInfo for socket ID:', socket.id, 'opponentData:', opponentData);
         if (opponentData && opponentData.name) {
-          // Ensure we're not using generic 'Player 2' name
           const opponentName = opponentData.name === 'Player 2' ? 'Opponent' : opponentData.name;
           setOpponentInfo({
             name: opponentName,
-            avatar: opponentData.avatar || ''
+            avatar: opponentData.avatar || '',
           });
           console.log('Updated opponent info:', { name: opponentName, avatar: opponentData.avatar || '' });
         } else {
@@ -288,7 +270,7 @@ function App() {
           if (data.playerRole) {
             setPlayerRole(data.playerRole);
           }
-          
+
           if (data.gameState) {
             setGameState(data.gameState);
             if (data.gameState.gameStatus === 'finished') {
@@ -386,7 +368,7 @@ function App() {
     });
   }, []);
 
-  const createRoom = (gameType = 'free', tokenType = null, tokenAmount = null) => {
+  const createRoom = (gameType = 'free', tokenType: string | null = null, tokenAmount: number | null = null) => {
     if (!isAuthenticated || !user?.sub || !user?.name) {
       setDialogMessage('Please ensure you are properly logged in.');
       return;
@@ -397,7 +379,7 @@ function App() {
       avatar: user.picture,
       gameType,
       tokenType,
-      tokenAmount
+      tokenAmount,
     };
     socket.emit('createRoom', playerData);
   };
@@ -408,17 +390,7 @@ function App() {
   };
 
   if (!isAuthenticated && !authLoading) {
-    return (
-      <QueryClientProvider client={queryClient}>
-        <SuiClientProvider networks={networks} defaultNetwork="testnet">
-          <WalletProvider>
-            <SuiWalletProvider>
-              <LoginScreen />
-            </SuiWalletProvider>
-          </WalletProvider>
-        </SuiClientProvider>
-      </QueryClientProvider>
-    );
+    return <LoginScreen />;
   }
 
   if (authLoading) {
@@ -441,178 +413,168 @@ function App() {
       .catch((error) => console.error('Error fetching players:', error));
 
     return (
-      <SuiClientProvider networks={networks} defaultNetwork="testnet">
-        <WalletProvider>
-          <SuiWalletProvider>
-            <div className="game-over-container">
-              <ParticlesBackground className="particles game-over-particles" variant="green" />
-              <GameOver
-                winner={winner}
-                playerRole={playerRole!}
-                playerInfo={playerInfo}
-                opponentInfo={opponentInfo || { name: 'Opponent', avatar: OpponentProfile }}
-                killCount={gameState.killCount}
-                playerEnergy={playerEnergy}
-                opponentEnergy={opponentEnergy}
-                onPlayAgain={() => {
-                  setGameState(null);
-                  setRoomId(null);
-                  setPlayerRole(null);
-                  setOpponentInfo(null);
-                }}
-              />
-            </div>
-          </SuiWalletProvider>
-        </WalletProvider>
-      </SuiClientProvider>
+      <div className="game-over-container">
+        <ParticlesBackground className="particles game-over-particles" variant="green" />
+        <GameOver
+          winner={winner}
+          playerRole={playerRole!}
+          playerInfo={playerInfo}
+          opponentInfo={opponentInfo || { name: 'Opponent', avatar: OpponentProfile }}
+          killCount={gameState.killCount}
+          playerEnergy={playerEnergy}
+          opponentEnergy={opponentEnergy}
+          onPlayAgain={() => {
+            setGameState(null);
+            setRoomId(null);
+            setPlayerRole(null);
+            setOpponentInfo(null);
+          }}
+        />
+      </div>
     );
   }
 
   if (gameState && roomId && playerRole) {
     return (
-      <SuiClientProvider networks={networks} defaultNetwork="testnet">
-        <WalletProvider>
-          <SuiWalletProvider>
-            <DndProvider backend={HTML5Backend}>
-              <div className="game-container">
-                <GameBoard
-                  gameState={gameState}
-                  onCardPlay={handleCardPlay}
-                  setGameState={setGameState}
-                  playerInfo={playerInfo}
-                  opponentInfo={opponentInfo || { name: 'Opponent', avatar: OpponentProfile }}
-                  combatLog={gameState.combatLog}
-                  addCombatLogEntry={addCombatLogEntry}
-                  killCount={gameState.killCount}
-                  playerRole={playerRole}
-                  roomId={roomId}
-                  socket={socket}
-                  onCardDefeated={(defeatedPlayerKey) => handleCardDefeated(defeatedPlayerKey)}
-                  onSignOut={() => {
-                    socket.emit('logout', user?.sub);
-                    signOut();
-                    setOpponentInfo(null);
-                    setGameState(null);
-                    setRoomId(null);
-                    setPlayerRole(null);
-                  }}
-                />
-              </div>
-            </DndProvider>
-          </SuiWalletProvider>
-        </WalletProvider>
-      </SuiClientProvider>
+      <DndProvider backend={HTML5Backend}>
+        <div className="game-container">
+          <GameBoard
+            gameState={gameState}
+            onCardPlay={handleCardPlay}
+            setGameState={setGameState}
+            playerInfo={playerInfo}
+            opponentInfo={opponentInfo || { name: 'Opponent', avatar: OpponentProfile }}
+            combatLog={gameState.combatLog}
+            addCombatLogEntry={addCombatLogEntry}
+            killCount={gameState.killCount}
+            playerRole={playerRole}
+            roomId={roomId}
+            socket={socket}
+            onCardDefeated={(defeatedPlayerKey) => handleCardDefeated(defeatedPlayerKey)}
+            onSignOut={() => {
+              socket.emit('logout', user?.sub);
+              signOut();
+              setOpponentInfo(null);
+              setGameState(null);
+              setRoomId(null);
+              setPlayerRole(null);
+            }}
+          />
+        </div>
+      </DndProvider>
     );
   }
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <SuiClientProvider networks={networks} defaultNetwork="testnet">
-        <WalletProvider>
-          <SuiWalletProvider>
-            <div className="lobby">
-              {isConnected && (
-                <div className="token-balances">
-                  <p>SUI Balance: {parseFloat(suiBalance) / 1e9} SUI</p>
-                  <p>SUIMON Balance: {parseFloat(suimonBalance)} SUIMON</p>
-                </div>
-              )}
-              <ParticlesBackground className="particles lobby-particles" />
-              <div className="user-profile">
-                <img src={playerInfo.avatar} alt="Profile" className="profile-image" crossOrigin="anonymous" referrerPolicy="no-referrer" />
-                <h2>Welcome, {user?.name || 'Player'}!</h2>
+    <div className="lobby">
+      {isConnected && (
+        <div className="token-balances">
+          <p>SUI Balance: {parseFloat(suiBalance) / 1e9} SUI</p>
+          <p>SUIMON Balance: {parseFloat(suimonBalance)} SUIMON</p>
+        </div>
+      )}
+      <ParticlesBackground className="particles lobby-particles" />
+      <div className="user-profile">
+        <img src={playerInfo.avatar} alt="Profile" className="profile-image" crossOrigin="anonymous" referrerPolicy="no-referrer" />
+        <h2>Welcome, {user?.name || 'Player'}!</h2>
+      </div>
+
+      <h1>Suimon Card Game</h1>
+      <div className="game-modes-container">
+        <div className="game-mode-section free-game-section">
+          <h3>Free Game</h3>
+          <p>Play without staking any tokens</p>
+          <button onClick={() => createRoom()} className="create-room-btn">
+            Create Free Game
+          </button>
+        </div>
+
+        <div className="game-mode-section paid-game-section">
+          <h3>Paid On-Chain Game</h3>
+          <p>Stake tokens to play and win more</p>
+          {!isConnected ? (
+            <div className="connect-wallet-container">
+              <WalletConnection />
+              <div style={{ width: '100%', maxWidth: '300px', margin: '0 auto' }}>
+                <button disabled className="stake-button" style={{ width: '100%' }}>
+                  Create Paid On-Chain Game
+                  <span className="gas-fee">Wallet connection required</span>
+                </button>
               </div>
-
-              <h1>Suimon Card Game</h1>
-              <div className="game-modes-container">
-                <div className="game-mode-section free-game-section">
-                  <h3>Free Game</h3>
-                  <p>Play without staking any tokens</p>
-                  <button onClick={() => createRoom()} className="create-room-btn">
-                    Create Free Game
-                  </button>
-                </div>
-
-                <div className="game-mode-section paid-game-section">
-                  <h3>Paid On-Chain Game</h3>
-                  <p>Stake tokens to play and win more</p>
-                  
-                  {!isConnected ? (
-                    <div className="connect-wallet-container">
-                      <WalletConnection />
-                      <div style={{ width: '100%', maxWidth: '300px', margin: '0 auto' }}>
-                        <button disabled className="stake-button" style={{ width: '100%' }}>
-                          Create Paid On-Chain Game
-                          <span className="gas-fee">Wallet connection required</span>
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <GameOptions 
-                      onCreateGame={(tokenType, amount) => {
-                        const playerData = {
-                          playerId: user?.sub,
-                          playerName: user?.name,
-                          avatar: user?.picture,
-                          gameType: 'paid',
-                          tokenType,
-                          tokenAmount: amount
-                        };
-                        socket.emit('createRoom', playerData);
-                      }}
-                    />
-                  )}
-                </div>
-
-                <div className="join-room-container">
-                  <h3>Join Existing Game</h3>
-                  <div className="join-input-group">
-                    <input
-                      type="text"
-                      value={joinRoomInput}
-                      onChange={(e) => setJoinRoomInput(e.target.value)}
-                      placeholder="Enter Room ID"
-                      className="room-input"
-                    />
-                    <button onClick={joinRoom} disabled={!joinRoomInput} className="join-room-btn">
-                      Join Game
-                    </button>
-                  </div>
-                </div>
-              </div>
-              {roomId && (
-                <RoomInfoBox
-                  roomId={roomId}
-                  playerRole={playerRole}
-                  gameState={gameState}
-                  onCopyRoomId={() => {
-                    navigator.clipboard.writeText(roomId);
-                    setDialogMessage('Room ID copied to clipboard!');
-                    setTimeout(() => setDialogMessage(null), 2000);
-                  }}
-                  onSignOut={() => {
-                    socket.emit('logout', user?.sub);
-                    signOut();
-                    setOpponentInfo(null);
-                  }}
-                />
-              )}
-              {dialogMessage && <div className="dialog-message">{dialogMessage}</div>}
-              <LeaderboardTable players={players} games={games} />
             </div>
-          </SuiWalletProvider>
-        </WalletProvider>
-      </SuiClientProvider>
-    </QueryClientProvider>
+          ) : (
+            <GameOptions
+              onCreateGame={(tokenType, amount) => {
+                const playerData = {
+                  playerId: user?.sub,
+                  playerName: user?.name,
+                  avatar: user?.picture,
+                  gameType: 'paid',
+                  tokenType,
+                  tokenAmount: amount,
+                };
+                socket.emit('createRoom', playerData);
+              }}
+            />
+          )}
+        </div>
+
+        <div className="join-room-container">
+          <h3>Join Existing Game</h3>
+          <div className="join-input-group">
+            <input
+              type="text"
+              value={joinRoomInput}
+              onChange={(e) => setJoinRoomInput(e.target.value)}
+              placeholder="Enter Room ID"
+              className="room-input"
+            />
+            <button onClick={joinRoom} disabled={!joinRoomInput} className="join-room-btn">
+              Join Game
+            </button>
+          </div>
+        </div>
+      </div>
+      {roomId && (
+        <RoomInfoBox
+          roomId={roomId}
+          playerRole={playerRole}
+          gameState={gameState}
+          onCopyRoomId={() => {
+            navigator.clipboard.writeText(roomId);
+            setDialogMessage('Room ID copied to clipboard!');
+            setTimeout(() => setDialogMessage(null), 2000);
+          }}
+          onSignOut={() => {
+            socket.emit('logout', user?.sub);
+            signOut();
+            setOpponentInfo(null);
+          }}
+        />
+      )}
+      {dialogMessage && <div className="dialog-message">{dialogMessage}</div>}
+      <LeaderboardTable players={players} games={games} />
+    </div>
   );
 }
 
 const AppWrapper = () => {
-  const queryClient = new QueryClient();
   return (
     <QueryClientProvider client={queryClient}>
       <SuiClientProvider networks={networks} defaultNetwork="testnet">
-        <WalletProvider>
+        <WalletProvider
+          autoConnect
+          preferredWallets={[
+            'Sui Wallet',
+            'Suiet',
+            'Ethos Wallet',
+            'Martian Sui Wallet',
+            'Glass Wallet',
+            'Morphis Wallet',
+            'OneKey Wallet',
+            'Wave Wallet',
+          ]}
+        >
           <SuiWalletProvider>
             <App />
           </SuiWalletProvider>
