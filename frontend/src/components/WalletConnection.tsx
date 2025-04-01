@@ -20,6 +20,16 @@ const WalletConnection: React.FC = () => {
       dappKitConnected,
       availableWallets: wallets.map(w => w.name)
     });
+
+    // Add global click listener for debugging
+    const handleGlobalClick = (event: MouseEvent) => {
+      console.log('Global click detected on element:', event.target);
+    };
+    document.addEventListener('click', handleGlobalClick);
+
+    return () => {
+      document.removeEventListener('click', handleGlobalClick);
+    };
   }, []);
 
   useEffect(() => {
@@ -48,9 +58,11 @@ const WalletConnection: React.FC = () => {
 
   useEffect(() => {
     if (isConnecting) {
+      console.log('Wallet connection in progress...');
       socketService.emitWalletEvent('connecting', { timestamp: new Date().toISOString() });
     }
     if (dappKitConnected) {
+      console.log('Wallet successfully connected via dapp-kit!');
       socketService.emitWalletEvent('connected', { timestamp: new Date().toISOString() });
       updateBalances(); // Fetch balances when connected
     }
@@ -64,18 +76,19 @@ const WalletConnection: React.FC = () => {
   };
 
   const CustomConnectButton = () => {
-    const handleButtonClick = () => {
-      socketService.emitWalletEvent('buttonClick', {
-        noWalletDetected,
-        isConnecting,
-        dappKitConnected,
-        walletAddress,
-        connectionError
-      });
-    };
-
     return (
-      <div className="connect-button-container" onClick={handleButtonClick}>
+      <div
+        className="connect-button-container"
+        onClick={(event) => {
+          console.log('Clicked connect-button-container', event.target);
+          socketService.emitWalletEvent('connectButtonClicked', {
+            timestamp: new Date().toISOString(),
+            wallets: wallets.map(w => w.name),
+            isConnecting,
+            dappKitConnected,
+          });
+        }}
+      >
         <ConnectButton
           className="custom-connect-button"
           connectText={
@@ -94,7 +107,10 @@ const WalletConnection: React.FC = () => {
   };
 
   return (
-    <div className="wallet-connection">
+    <div
+      className="wallet-connection"
+      onClick={(event) => console.log('Clicked wallet-connection div', event.target)}
+    >
       <div className="wallet-status">
         {dappKitConnected ? (
           <div className="wallet-info">
