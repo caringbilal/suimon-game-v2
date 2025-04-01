@@ -8,6 +8,7 @@
     "@craco/craco": "^7.1.0",
     "@mysten/dapp-kit": "^0.15.0",
     "@mysten/sui": "^1.25.0",
+    "@mysten/sui.js": "^0.12.0",
     "@mysten/wallet-kit": "^0.8.6",
     "@mysten/wallet-standard": "^0.14.0",
     "@react-oauth/google": "^0.12.1",

@@ -118,7 +118,6 @@
   text-transform: uppercase !important;
   letter-spacing: 1px !important;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1) !important;
-  pointer-events: auto !important;
   position: relative !important;
   z-index: 10 !important;
 }
@@ -134,5 +133,11 @@
 .connect-button-wrapper {
   position: relative;
   z-index: 5;
-  pointer-events: auto;
+}
+
+/* Make sure all parent containers allow click events to pass through */
+.wallet-connection,
+.connect-button-container {
+  position: relative;
+  z-index: auto;
 }

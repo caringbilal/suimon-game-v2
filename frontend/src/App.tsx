@@ -4,6 +4,7 @@ import { jwtDecode } from 'jwt-decode';
 import './App.css';
 import './styles/room-info.css';
 import './styles/game-modes.css';
+import { socketService } from './services/socketService';
 import GameBoard from '@components/GameBoard';
 import GameOver from '@components/GameOver';
 import { GameState, CardType } from './types/game';
@@ -19,8 +20,8 @@ import ParticlesBackground from '@components/Particles';
 import { SuiClientProvider, WalletProvider } from '@mysten/dapp-kit';
 import { getFullnodeUrl } from '@mysten/sui.js/client';
 import { SuiWalletProvider, useSuiWallet } from './context/SuiWalletContext';
-import WalletConnection from './components/WalletConnection';
 import GameOptions from './components/GameOptions';
+import WalletConnection from './components/WalletConnection';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // Define the network type explicitly
@@ -212,6 +213,7 @@ function App() {
 
       socket.on('connect', () => {
         console.log('Connected to server at', SERVER_URL, 'with socket ID:', socket.id);
+        socketService.setSocket(socket);
       });
 
       socket.on('roomCreated', (data: { roomId: string; player: any }) => {

@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { useCurrentAccount } from '@mysten/dapp-kit';
-import { SuiClient } from '@mysten/sui/client';
+import { useCurrentWallet, useSuiClient } from '@mysten/dapp-kit';
 
 interface SuiWalletContextType {
   walletAddress: string | null;
@@ -14,38 +13,54 @@ interface SuiWalletContextType {
 
 const SuiWalletContext = createContext<SuiWalletContextType | null>(null);
 
-const SUIMON_TOKEN_ADDRESS = '0xc0ba93a810adb498900c82bb6f7c16ca3046dfa7b6f364ec985595fdeb1ee9ad::suimon::SUIMON';
-const TESTNET_RPC_URL = 'https://fullnode.testnet.sui.io:443';
+// Use the correct SUIMON coin type (update this with the actual coin type if different)
+const SUIMON_COIN_TYPE = '0xc0ba93a810adb498900c82bb6f7c16ca3046dfa7b6f364ec985595fdeb1ee9ad::suimon::SUIMON';
 
 export const SuiWalletProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const currentAccount = useCurrentAccount();
+  const { currentWallet, isConnected: dappKitConnected } = useCurrentWallet();
+  const suiClient = useSuiClient();
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [suiBalance, setSuiBalance] = useState('0');
   const [suimonBalance, setSuimonBalance] = useState('0');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isConnected, setIsConnected] = useState<boolean>(false);
 
-  const suiClient = new SuiClient({ url: TESTNET_RPC_URL });
+  useEffect(() => {
+    console.log('SuiWalletContext: Connection state changed', { dappKitConnected, currentWallet });
+    setIsConnected(dappKitConnected);
+    if (dappKitConnected && currentWallet) {
+      const address = currentWallet.accounts[0]?.address;
+      setWalletAddress(address || null);
+      console.log('Wallet address set:', address);
+    } else {
+      setWalletAddress(null);
+      setSuiBalance('0');
+      setSuimonBalance('0');
+    }
+  }, [dappKitConnected, currentWallet]);
 
   const updateBalances = async () => {
-    if (!currentAccount?.address) return;
+    if (!walletAddress || !suiClient) return;
 
     setIsLoading(true);
     setError(null);
 
     try {
       // Get SUI balance
-      const { totalBalance } = await suiClient.getBalance({
-        owner: currentAccount.address,
+      const suiBalanceResponse = await suiClient.getBalance({
+        owner: walletAddress,
       });
-      setSuiBalance(totalBalance.toString());
+      setSuiBalance(suiBalanceResponse.totalBalance.toString());
+      console.log('SUI balance fetched:', suiBalanceResponse.totalBalance.toString());
 
       // Get SUIMON token balance
-      const { totalBalance: tokenBalance } = await suiClient.getBalance({
-        owner: currentAccount.address,
-        coinType: SUIMON_TOKEN_ADDRESS,
+      const suimonBalanceResponse = await suiClient.getBalance({
+        owner: walletAddress,
+        coinType: SUIMON_COIN_TYPE,
       });
-      setSuimonBalance(tokenBalance.toString());
+      setSuimonBalance(suimonBalanceResponse.totalBalance.toString());
+      console.log('SUIMON balance fetched:', suimonBalanceResponse.totalBalance.toString());
     } catch (err) {
       setError('Failed to fetch balances');
       console.error('Error fetching balances:', err);
@@ -55,15 +70,10 @@ export const SuiWalletProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   useEffect(() => {
-    if (currentAccount?.address) {
-      setWalletAddress(currentAccount.address);
+    if (walletAddress) {
       updateBalances();
-    } else {
-      setWalletAddress(null);
-      setSuiBalance('0');
-      setSuimonBalance('0');
     }
-  }, [currentAccount]);
+  }, [walletAddress]);
 
   return (
     <SuiWalletContext.Provider
@@ -71,7 +81,7 @@ export const SuiWalletProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         walletAddress,
         suiBalance,
         suimonBalance,
-        isConnected: !!currentAccount,
+        isConnected,
         isLoading,
         error,
         updateBalances,

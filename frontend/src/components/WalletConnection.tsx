@@ -1,43 +1,61 @@
 import React, { useEffect, useState } from 'react';
 import { ConnectButton, useCurrentWallet, useWallets } from '@mysten/dapp-kit';
 import { useSuiWallet } from '../context/SuiWalletContext';
+import { socketService } from '../services/socketService';
 import './WalletConnection.css';
 
 const WalletConnection: React.FC = () => {
-  const { walletAddress, suiBalance, suimonBalance, isConnected, isLoading, error } = useSuiWallet();
+  const { walletAddress, suiBalance, suimonBalance, isConnected, isLoading, error, updateBalances } = useSuiWallet();
   const { isConnecting, isConnected: dappKitConnected } = useCurrentWallet();
-  const wallets = useWallets(); // Use dapp-kit's wallet detection
+  const wallets = useWallets();
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [noWalletDetected, setNoWalletDetected] = useState<boolean>(false);
 
-  // Log initial state on mount
   useEffect(() => {
-    console.log('WalletConnection component mounted');
-    console.log('Initial wallet state:', { isConnected, walletAddress, isLoading, error, dappKitConnected });
+    socketService.emitWalletEvent('componentMount', { 
+      isConnected, 
+      walletAddress, 
+      isLoading, 
+      error, 
+      dappKitConnected,
+      availableWallets: wallets.map(w => w.name)
+    });
   }, []);
 
-  // Detect wallet availability using dapp-kit
   useEffect(() => {
-    console.log('Wallet connection state changed:', { isConnected, dappKitConnected, walletAddress });
-
-    // Check if any wallets are available
     if (wallets.length === 0) {
       setNoWalletDetected(true);
-      setConnectionError('No Sui-compatible wallet detected. Please install a wallet like Sui Wallet.');
+      setConnectionError('No Sui-compatible wallet detected. Please install a wallet like Sui Wallet or Suiet.');
+      socketService.emitWalletEvent('noWalletDetected', { timestamp: new Date().toISOString() });
     } else {
       setNoWalletDetected(false);
+      socketService.emitWalletEvent('walletsDetected', { wallets: wallets.map(wallet => wallet.name) });
     }
 
-    // Log state mismatch for debugging
     if (dappKitConnected !== isConnected) {
-      console.warn('Connection state mismatch between dapp-kit and SuiWalletContext:', {
+      socketService.emitWalletEvent('connectionStateMismatch', {
         dappKitConnected,
         isConnected,
       });
     }
+
+    socketService.emitWalletEvent('connectionStateChange', { 
+      isConnected, 
+      dappKitConnected, 
+      walletAddress 
+    });
   }, [isConnected, dappKitConnected, walletAddress, wallets]);
 
-  // Format balance for display
+  useEffect(() => {
+    if (isConnecting) {
+      socketService.emitWalletEvent('connecting', { timestamp: new Date().toISOString() });
+    }
+    if (dappKitConnected) {
+      socketService.emitWalletEvent('connected', { timestamp: new Date().toISOString() });
+      updateBalances(); // Fetch balances when connected
+    }
+  }, [isConnecting, dappKitConnected, updateBalances]);
+
   const formatBalance = (balance: string) => {
     const num = parseFloat(balance);
     if (num === 0) return '0';
@@ -45,10 +63,19 @@ const WalletConnection: React.FC = () => {
     return num.toLocaleString(undefined, { maximumFractionDigits: 4 });
   };
 
-  // Custom ConnectButton component
   const CustomConnectButton = () => {
+    const handleButtonClick = () => {
+      socketService.emitWalletEvent('buttonClick', {
+        noWalletDetected,
+        isConnecting,
+        dappKitConnected,
+        walletAddress,
+        connectionError
+      });
+    };
+
     return (
-      <div className="connect-button-container">
+      <div className="connect-button-container" onClick={handleButtonClick}>
         <ConnectButton
           className="custom-connect-button"
           connectText={
@@ -60,10 +87,6 @@ const WalletConnection: React.FC = () => {
               ? 'CONNECTED'
               : 'CONNECT WALLET'
           }
-          onClick={() => {
-            console.log('Connect wallet button clicked');
-            setConnectionError(null); // Clear previous errors on click
-          }}
         />
         {connectionError && <div className="connection-error">{connectionError}</div>}
       </div>

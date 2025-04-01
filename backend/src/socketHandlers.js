@@ -33,6 +33,16 @@ export default (io) => {
     console.log('Query Parameters:', socket.handshake.query);
     console.log('Player ID:', socket.handshake.query.playerId);
 
+    // Handle wallet events
+    socket.on('walletEvent', (event) => {
+        console.log('=== Wallet Event ===');
+        console.log('Event Type:', event.type);
+        console.log('Event Data:', event.data);
+        console.log('Timestamp:', event.timestamp);
+        console.log('Socket ID:', socket.id);
+        console.log('==================');
+    });
+
     // Handle room creation
     socket.on('createRoom', async (playerData) => {
       try {
