@@ -10,7 +10,9 @@ import { useDrop } from 'react-dnd';
 import { Socket } from 'socket.io-client';
 import '../styles/draggable-stats.css';
 import LogoutButton from './LogoutButton';
-import defaultAvatar from '../assets/ui/default-avatar.png'; // Ensure this image exists
+import defaultAvatar from '../assets/ui/default-avatar.png';
+import { useSuiWallet } from '../context/SuiWalletContext';
+import WalletConnection from './WalletConnection';
 
 interface GameEndDialogProps {
   winner: 'player' | 'opponent';
@@ -55,6 +57,7 @@ export default React.memo<GameBoardProps>(
     onCardDefeated,
     onSignOut,
   }) => {
+    const { isConnected, suiBalance, suimonBalance } = useSuiWallet();
     console.log('GameBoard rendering for playerRole:', playerRole, 'with gameState:', gameState);
     console.log('Player Info:', playerInfo);
     console.log('Opponent Info:', opponentInfo);
@@ -390,6 +393,15 @@ export default React.memo<GameBoardProps>(
 
     return (
       <div className="game-board">
+        <div className="wallet-info">
+          <WalletConnection />
+          {isConnected && (
+            <div className="token-balances">
+              <p>SUI Balance: {parseFloat(suiBalance) / 1e9} SUI</p>
+              <p>SUIMON Balance: {parseFloat(suimonBalance)} SUIMON</p>
+            </div>
+          )}
+        </div>
         <div className="room-info-box">
           <h3>Room ID: {roomId}</h3>
           <div className="room-info-content">

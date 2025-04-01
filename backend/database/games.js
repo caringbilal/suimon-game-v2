@@ -16,6 +16,9 @@ export const initializeGamesTable = () => {
         player2Data TEXT,
         status TEXT,
         hands TEXT,
+        gameType TEXT DEFAULT 'free',
+        tokenType TEXT,
+        tokenAmount TEXT,
         FOREIGN KEY(player1Id) REFERENCES players(playerId),
         FOREIGN KEY(player2Id) REFERENCES players(playerId)
       )`,
@@ -25,6 +28,43 @@ export const initializeGamesTable = () => {
           reject(err);
         } else {
           console.log('Games table initialized');
+          
+          // Add gameType column if it doesn't exist
+          db.run(
+            `ALTER TABLE games ADD COLUMN gameType TEXT DEFAULT 'free'`,
+            (err) => {
+              if (err && !err.message.includes('duplicate column name')) {
+                console.error('Error adding gameType column:', err);
+              } else {
+                console.log('gameType column added or already exists');
+              }
+            }
+          );
+          
+          // Add tokenType column if it doesn't exist
+          db.run(
+            `ALTER TABLE games ADD COLUMN tokenType TEXT`,
+            (err) => {
+              if (err && !err.message.includes('duplicate column name')) {
+                console.error('Error adding tokenType column:', err);
+              } else {
+                console.log('tokenType column added or already exists');
+              }
+            }
+          );
+          
+          // Add tokenAmount column if it doesn't exist
+          db.run(
+            `ALTER TABLE games ADD COLUMN tokenAmount TEXT`,
+            (err) => {
+              if (err && !err.message.includes('duplicate column name')) {
+                console.error('Error adding tokenAmount column:', err);
+              } else {
+                console.log('tokenAmount column added or already exists');
+              }
+            }
+          );
+          
           resolve();
         }
       }
@@ -35,11 +75,11 @@ export const initializeGamesTable = () => {
 // Create a new game
 export const createGame = (game) => {
   return new Promise((resolve, reject) => {
-    const { gameId, player1Id, player2Id, gameState, startTime, status } = game;
+    const { gameId, player1Id, player2Id, gameState, startTime, status, gameType, tokenType, tokenAmount } = game;
     db.run(
-      `INSERT INTO games (gameId, startTime, player1Id, player2Id, gameState, status, winnerName)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [gameId, startTime, player1Id, player2Id, gameState, status, null],
+      `INSERT INTO games (gameId, startTime, player1Id, player2Id, gameState, status, winnerName, gameType, tokenType, tokenAmount)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [gameId, startTime, player1Id, player2Id, gameState, status, null, gameType || 'free', tokenType || null, tokenAmount || null],
       function (err) {
         if (err) {
           console.error('Error creating game:', err);

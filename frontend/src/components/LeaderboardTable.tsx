@@ -16,6 +16,9 @@ interface Game {
   gameState: string;
   winner: string;
   winnerName?: string;
+  gameType?: 'free' | 'paid';
+  tokenType?: string;
+  tokenAmount?: string;
 }
 
 interface LeaderboardTableProps {
@@ -76,10 +79,17 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ players, games }) =
         if (game.player1Id === playerId || game.player2Id === playerId) {
           stats.totalGames++;
           if (game.winner === playerId) stats.wins++;
+          
+          // Track game types
+          if (game.gameType === 'paid') {
+            stats.paidGames++;
+          } else {
+            stats.freeGames++;
+          }
         }
         return stats;
       },
-      { totalGames: 0, wins: 0 }
+      { totalGames: 0, wins: 0, paidGames: 0, freeGames: 0 }
     );
   };
 
@@ -99,6 +109,7 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ players, games }) =
               <th>Host</th>
               <th>Guest</th>
               <th>Winner</th>
+              <th>Game Type</th>
               <th>Start Time</th>
             </tr>
           </thead>
@@ -120,6 +131,15 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ players, games }) =
                   <td>{player1Name}</td>
                   <td>{player2Name}</td>
                   <td>{winnerName}</td>
+                  <td>
+                    {game.gameType === 'paid' ? (
+                      <span className="paid-game">
+                        Paid ({game.tokenType} {game.tokenAmount})
+                      </span>
+                    ) : (
+                      <span className="free-game">Free</span>
+                    )}
+                  </td>
                   <td>{new Date(game.startTime).toLocaleString()}</td>
                 </tr>
               );
@@ -162,24 +182,29 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ players, games }) =
               <th>Total Games</th>
               <th>Wins</th>
               <th>Win Rate</th>
+              <th>Game Types</th>
               <th>Join Date</th>
             </tr>
           </thead>
           <tbody>
             {currentPlayers.length > 0 ? currentPlayers.map((player) => {
-              const stats = playerStats.get(player.playerId) || { totalGames: 0, wins: 0, winRate: '0.0' };
+              const stats = playerStats.get(player.playerId) || { totalGames: 0, wins: 0, winRate: '0.0', freeGames: 0, paidGames: 0 };
               return (
                 <tr key={player.playerId}>
                   <td>{player.playerName || 'Unknown'}</td>
                   <td>{stats.totalGames}</td>
                   <td>{stats.wins}</td>
                   <td>{stats.winRate}%</td>
+                  <td>
+                    <span className="free-game">{stats.freeGames} Free</span>
+                    {stats.paidGames > 0 && <span className="paid-game"> / {stats.paidGames} Paid</span>}
+                  </td>
                   <td>{player.createdAt ? new Date(player.createdAt).toLocaleDateString() : 'N/A'}</td>
                 </tr>
               );
             }) : (
               <tr>
-                <td colSpan={5} className="no-data-message">No player data available</td>
+                <td colSpan={6} className="no-data-message">No player data available</td>
               </tr>
             )}
           </tbody>

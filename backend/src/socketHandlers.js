@@ -66,6 +66,9 @@ export default (io) => {
           gameState: null,
           active: true,
           lastActivity: Date.now(),
+          gameType: playerData.gameType || 'free',
+          tokenType: playerData.tokenType,
+          tokenAmount: playerData.tokenAmount
         };
 
         // Store in memory
@@ -79,11 +82,14 @@ export default (io) => {
           gameState: JSON.stringify({}),
           startTime: Date.now(),
           status: 'waiting',
+          gameType: playerData.gameType || 'free',
+          tokenType: playerData.tokenType,
+          tokenAmount: playerData.tokenAmount
         });
 
         socket.join(roomId);
         console.log(`Room ${roomId} created by Player 1 (${player.playerName}) with socket ID: ${socket.id}`);
-        socket.emit('roomCreated', { roomId, player });
+        socket.emit('roomCreated', { roomId, player, gameType: playerData.gameType || 'free' });
       } catch (error) {
         console.error('Error creating room:', error);
         socket.emit('error', 'Failed to create room');
