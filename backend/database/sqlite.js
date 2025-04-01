@@ -194,6 +194,51 @@ const initializeDatabase = async () => {
       );
     });
 
+    // Add gameType column if it doesn't exist
+    await new Promise((resolve, reject) => {
+      db.run(
+        `ALTER TABLE games ADD COLUMN gameType TEXT DEFAULT 'free'`,
+        (err) => {
+          if (err && !err.message.includes('duplicate column name')) {
+            reject(err);
+          } else {
+            console.log('gameType column added or already exists');
+            resolve();
+          }
+        }
+      );
+    });
+    
+    // Add tokenType column if it doesn't exist
+    await new Promise((resolve, reject) => {
+      db.run(
+        `ALTER TABLE games ADD COLUMN tokenType TEXT`,
+        (err) => {
+          if (err && !err.message.includes('duplicate column name')) {
+            reject(err);
+          } else {
+            console.log('tokenType column added or already exists');
+            resolve();
+          }
+        }
+      );
+    });
+    
+    // Add tokenAmount column if it doesn't exist
+    await new Promise((resolve, reject) => {
+      db.run(
+        `ALTER TABLE games ADD COLUMN tokenAmount TEXT`,
+        (err) => {
+          if (err && !err.message.includes('duplicate column name')) {
+            reject(err);
+          } else {
+            console.log('tokenAmount column added or already exists');
+            resolve();
+          }
+        }
+      );
+    });
+
     await new Promise((resolve, reject) => {
       db.run(
         `UPDATE games SET status = 'finished' WHERE status IS NULL AND winner IS NOT NULL`,

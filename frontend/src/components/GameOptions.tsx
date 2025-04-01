@@ -29,6 +29,15 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
     return num.toLocaleString(undefined, { maximumFractionDigits: 4 });
   };
 
+  const handleStakeButtonClick = (tokenType: 'SUI' | 'SUIMON', value: string) => {
+    if (isConnected) {
+      onCreateGame(tokenType, value);
+    } else {
+      // If wallet is not connected, we don't proceed but the button is still clickable
+      console.log('Please connect wallet first');
+    }
+  };
+
   return (
     <div className="game-options">
       <div className="token-selector">
@@ -55,7 +64,7 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
             <button
               key={option.value}
               className="stake-button"
-              onClick={() => onCreateGame(selectedToken, option.value)}
+              onClick={() => handleStakeButtonClick(selectedToken, option.value)}
               disabled={!isConnected}
             >
               {option.label}

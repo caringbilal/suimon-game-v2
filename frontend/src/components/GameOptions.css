@@ -77,8 +77,17 @@
 }
 
 .stake-button:disabled {
-  opacity: 0.5;
+  background: #555555;
+  opacity: 0.7;
   cursor: not-allowed;
+  color: #aaaaaa;
+  border: 1px solid #444444;
+}
+
+.stake-button:disabled:hover {
+  background: #555555;
+  transform: none;
+  box-shadow: none;
 }
 
 .gas-fee {

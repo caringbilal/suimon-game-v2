@@ -18,6 +18,7 @@ const WalletConnection: React.FC = () => {
       <div className="wallet-status">
         {isConnected ? (
           <div className="wallet-info">
+            <div className="wallet-status-connected">Wallet is Connected</div>
             <div className="wallet-address">
               {`${walletAddress?.slice(0, 6)}...${walletAddress?.slice(-4)}`}
             </div>
