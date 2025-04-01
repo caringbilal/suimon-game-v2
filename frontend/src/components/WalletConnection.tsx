@@ -43,7 +43,9 @@ const WalletConnection: React.FC = () => {
           </div>
         )}
       </div>
-      <ConnectButton />
+      <div className="connect-button-wrapper">
+        <ConnectButton className="custom-connect-button" connectText="CONNECT WALLET" />
+      </div>
       {error && <div className="error-message">{error}</div>}
     </div>
   );

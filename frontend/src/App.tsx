@@ -539,8 +539,13 @@ function App() {
                   
                   {!isConnected ? (
                     <div className="connect-wallet-container">
-                      <p>Connect your wallet to play with tokens</p>
                       <WalletConnection />
+                      <div style={{ width: '100%', maxWidth: '300px', margin: '0 auto' }}>
+                        <button disabled className="stake-button" style={{ width: '100%' }}>
+                          Create Paid On-Chain Game
+                          <span className="gas-fee">Wallet connection required</span>
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <GameOptions 
