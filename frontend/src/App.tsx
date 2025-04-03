@@ -17,25 +17,9 @@ import { useAuth } from './context/AuthContext';
 import LeaderboardTable from '@components/LeaderboardTable';
 import RoomInfoBox from '@components/RoomInfoBox';
 import ParticlesBackground from '@components/Particles';
-import { SuiClientProvider, WalletProvider } from '@mysten/dapp-kit';
-import { getFullnodeUrl } from '@mysten/sui.js/client';
-import { SuiWalletProvider, useSuiWallet } from './context/SuiWalletContext';
+import { useSuiWallet } from './context/SuiWalletContext';
 import GameOptions from './components/GameOptions';
 import WalletConnection from './components/WalletConnection';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-
-// Define the network type explicitly
-type SuiNetwork = 'mainnet' | 'testnet' | 'devnet' | 'localnet';
-
-// Define network configurations directly without createNetworkConfig
-const networks = {
-  testnet: { url: getFullnodeUrl('testnet' as SuiNetwork), name: 'Sui Testnet' },
-  mainnet: { url: getFullnodeUrl('mainnet' as SuiNetwork), name: 'Sui Mainnet' },
-  devnet: { url: getFullnodeUrl('devnet' as SuiNetwork), name: 'Sui Devnet' },
-};
-
-// Create a single QueryClient instance
-const queryClient = new QueryClient();
 
 const SERVER_URL = process.env.REACT_APP_API_URL || 'http://localhost:3002';
 
@@ -560,30 +544,4 @@ function App() {
   );
 }
 
-const AppWrapper = () => {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <SuiClientProvider networks={networks} defaultNetwork="testnet">
-        <WalletProvider
-          autoConnect
-          preferredWallets={[
-            'Sui Wallet',
-            'Suiet',
-            'Ethos Wallet',
-            'Martian Sui Wallet',
-            'Glass Wallet',
-            'Morphis Wallet',
-            'OneKey Wallet',
-            'Wave Wallet',
-          ]}
-        >
-          <SuiWalletProvider>
-            <App />
-          </SuiWalletProvider>
-        </WalletProvider>
-      </SuiClientProvider>
-    </QueryClientProvider>
-  );
-};
-
-export default AppWrapper;
+export default App;

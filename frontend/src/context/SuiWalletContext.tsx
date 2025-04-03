@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useCurrentWallet, useSuiClient } from '@mysten/dapp-kit';
+import { socketService } from '../services/socketService';
 
 interface SuiWalletContextType {
   walletAddress: string | null;
@@ -27,16 +28,21 @@ export const SuiWalletProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [isConnected, setIsConnected] = useState<boolean>(false);
 
   useEffect(() => {
-    console.log('SuiWalletContext: Connection state changed', { dappKitConnected, currentWallet });
+    const connectionState = { dappKitConnected, currentWallet };
+    console.log('SuiWalletContext: Connection state changed', connectionState);
+    socketService.emitWalletEvent('connectionStateChanged', connectionState);
+    
     setIsConnected(dappKitConnected);
     if (dappKitConnected && currentWallet) {
       const address = currentWallet.accounts[0]?.address;
       setWalletAddress(address || null);
       console.log('Wallet address set:', address);
+      socketService.emitWalletEvent('walletConnected', { address, wallet: currentWallet.name });
     } else {
       setWalletAddress(null);
       setSuiBalance('0');
       setSuimonBalance('0');
+      socketService.emitWalletEvent('walletDisconnected', {});
     }
   }, [dappKitConnected, currentWallet]);
 
