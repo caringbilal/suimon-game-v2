@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useSuiWallet } from '../context/SuiWalletContext';
 import { socketService } from '../services/socketService';
-import { useConnectWallet, useWallets } from '@mysten/dapp-kit';
+import { useConnectWallet, useWallets, useCurrentWallet, useDisconnectWallet } from '@mysten/dapp-kit';
 import { Wallet } from '@mysten/wallet-standard';
 import './WalletConnection.css';
+import './WalletDialog.css';
 
 const WalletConnection: React.FC = () => {
   const { walletAddress, suiBalance, suimonBalance, isConnected, isLoading, error, updateBalances } = useSuiWallet();
@@ -34,6 +35,8 @@ const WalletConnection: React.FC = () => {
   const CustomConnectButton = () => {
     const [showWalletList, setShowWalletList] = useState(false);
     const { mutate: connect } = useConnectWallet();
+    const { currentWallet } = useCurrentWallet();
+    const { mutate: disconnect } = useDisconnectWallet();
     const availableWallets: Wallet[] = useWallets();
     const wallets = [
       { name: 'Sui Wallet', icon: '🔷' },
@@ -96,38 +99,55 @@ const WalletConnection: React.FC = () => {
             Connect Wallet
           </button>
         ) : (
-          <div className="wallet-list-popup">
-            <div className="wallet-list-header">
-              <h3>Connect a Wallet</h3>
-              <button 
-                className="close-button" 
-                onClick={() => {
-                  setShowWalletList(false);
-                  socketService.emitWalletEvent('walletSelectionClosed', {
-                    timestamp: new Date().toISOString(),
-                    userAction: 'manual_close',
-                    timeOpen: Date.now() - new Date().getTime()
-                  });
-                }}
-              >
-                ×
-              </button>
-            </div>
-            <div className="wallet-list">
-              {wallets.map((wallet) => (
-                <button
-                  key={wallet.name}
-                  className="wallet-option"
-                  onClick={() => handleConnect(wallet.name)}
+          <div className="wallet-popup-overlay">
+            <div className="wallet-list-popup">
+              <div className="wallet-list-header">
+                <h3>Connect a Wallet</h3>
+                <button 
+                  className="close-button" 
+                  onClick={() => {
+                    setShowWalletList(false);
+                    socketService.emitWalletEvent('walletSelectionClosed', {
+                      timestamp: new Date().toISOString(),
+                      userAction: 'manual_close',
+                      timeOpen: Date.now() - new Date().getTime()
+                    });
+                  }}
                 >
-                  <span className="wallet-icon">{wallet.icon}</span>
-                  <span className="wallet-name">{wallet.name}</span>
+                  ×
                 </button>
-              ))}
+              </div>
+              <div className="wallet-list">
+                {wallets.map((wallet) => (
+                  <button
+                    key={wallet.name}
+                    className="wallet-option"
+                    data-wallet={wallet.name}
+                    onClick={() => handleConnect(wallet.name)}
+                  >
+                    <span className="wallet-icon">{wallet.icon}</span>
+                    <span className="wallet-name">{wallet.name}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         )}
         {connectionError && <div className="connection-error">{connectionError}</div>}
+        {isConnected && (
+          <button 
+            className="disconnect-button" 
+            onClick={() => {
+              disconnect();
+              socketService.emitWalletEvent('walletDisconnected', {
+                timestamp: new Date().toISOString(),
+                userAction: 'manual_disconnect'
+              });
+            }}
+          >
+            Disconnect Wallet
+          </button>
+        )}
       </div>
     );
   };
