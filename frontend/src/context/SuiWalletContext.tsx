@@ -28,16 +28,26 @@ export const SuiWalletProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [isConnected, setIsConnected] = useState<boolean>(false);
 
   useEffect(() => {
-    const connectionState = { dappKitConnected, currentWallet };
-    console.log('SuiWalletContext: Connection state changed', connectionState);
+    const connectionState = { 
+      dappKitConnected, 
+      currentWallet,
+      previousAddress: walletAddress,
+      timestamp: new Date().toISOString(),
+      connectionDuration: isConnected ? Date.now() - new Date().getTime() : 0
+    };
     socketService.emitWalletEvent('connectionStateChanged', connectionState);
     
     setIsConnected(dappKitConnected);
     if (dappKitConnected && currentWallet) {
       const address = currentWallet.accounts[0]?.address;
       setWalletAddress(address || null);
-      console.log('Wallet address set:', address);
-      socketService.emitWalletEvent('walletConnected', { address, wallet: currentWallet.name });
+      socketService.emitWalletEvent('walletConnected', { 
+        address, 
+        wallet: currentWallet.name,
+        timestamp: new Date().toISOString(),
+        connectionType: currentWallet.name,
+        accountDetails: currentWallet.accounts
+      });
     } else {
       setWalletAddress(null);
       setSuiBalance('0');
@@ -58,7 +68,12 @@ export const SuiWalletProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         owner: walletAddress,
       });
       setSuiBalance(suiBalanceResponse.totalBalance.toString());
-      console.log('SUI balance fetched:', suiBalanceResponse.totalBalance.toString());
+      socketService.emitWalletEvent('balanceUpdate', {
+        type: 'SUI',
+        balance: suiBalanceResponse.totalBalance.toString(),
+        address: walletAddress,
+        timestamp: new Date().toISOString()
+      });
 
       // Get SUIMON token balance
       const suimonBalanceResponse = await suiClient.getBalance({
@@ -66,10 +81,22 @@ export const SuiWalletProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         coinType: SUIMON_COIN_TYPE,
       });
       setSuimonBalance(suimonBalanceResponse.totalBalance.toString());
-      console.log('SUIMON balance fetched:', suimonBalanceResponse.totalBalance.toString());
+      socketService.emitWalletEvent('balanceUpdate', {
+        type: 'SUIMON',
+        balance: suimonBalanceResponse.totalBalance.toString(),
+        address: walletAddress,
+        timestamp: new Date().toISOString()
+      });
     } catch (err) {
-      setError('Failed to fetch balances');
-      console.error('Error fetching balances:', err);
+      const errorMessage = 'Failed to fetch balances';
+      setError(errorMessage);
+      socketService.emitWalletEvent('error', {
+        type: 'BALANCE_FETCH_ERROR',
+        message: errorMessage,
+        error: err,
+        walletAddress,
+        timestamp: new Date().toISOString()
+      });
     } finally {
       setIsLoading(false);
     }

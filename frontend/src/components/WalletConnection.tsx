@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useSuiWallet } from '../context/SuiWalletContext';
 import { socketService } from '../services/socketService';
+import { useConnectWallet, useWallets } from '@mysten/dapp-kit';
+import { Wallet } from '@mysten/wallet-standard';
 import './WalletConnection.css';
 
 const WalletConnection: React.FC = () => {
@@ -31,17 +33,46 @@ const WalletConnection: React.FC = () => {
 
   const CustomConnectButton = () => {
     const [showWalletList, setShowWalletList] = useState(false);
+    const { mutate: connect } = useConnectWallet();
+    const availableWallets: Wallet[] = useWallets();
     const wallets = [
       { name: 'Sui Wallet', icon: '🔷' },
       { name: 'Phantom', icon: '👻' },
       { name: 'Cosmostation', icon: '🌌' },
-      { name: 'Suiet', icon: '🌊' }
+      { name: 'Suiet', icon: '🌊' },
     ];
 
-    const handleConnect = (walletName: string) => {
-      setShowWalletList(false);
-      console.log('Attempting to connect wallet:', walletName);
-      socketService.emitWalletEvent('walletConnectionAttempt', { walletName });
+    console.log('Available Wallets:', availableWallets);
+
+    const handleConnect = async (walletName: string) => {
+      try {
+        socketService.emitWalletEvent('walletConnectionAttempt', { 
+          walletName,
+          timestamp: new Date().toISOString(),
+          previousConnectionState: isConnected,
+          hasError: !!connectionError
+        });
+        
+        const wallet = wallets.find(w => w.name === walletName);
+        if (!wallet) {
+          throw new Error('Wallet not found');
+        }
+
+        const isAvailable = availableWallets.some((w: Wallet) => w.name === wallet.name);
+        if (!isAvailable) {
+          throw new Error(`${walletName} is not installed`);
+        }
+        
+        // Type assertion to match the expected type for connect
+        const selectedWallet = availableWallets.find(w => w.name === wallet.name)! as any;
+        await connect({ wallet: selectedWallet });
+        
+        setShowWalletList(false);
+      } catch (err) {
+        console.error('Failed to connect wallet:', err);
+        setConnectionError(`Failed to connect: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        setShowWalletList(false);
+      }
     };
 
     return (
@@ -51,8 +82,15 @@ const WalletConnection: React.FC = () => {
             className="connect-wallet-button" 
             onClick={() => {
               setShowWalletList(true);
-              console.log('Opening wallet selection popup');
-              socketService.emitWalletEvent('walletSelectionOpened', {});
+              socketService.emitWalletEvent('walletSelectionOpened', {
+                timestamp: new Date().toISOString(),
+                currentWalletState: {
+                  isConnected,
+                  hasAddress: !!walletAddress,
+                  hasSuiBalance: parseFloat(suiBalance) > 0,
+                  hasSuimonBalance: parseFloat(suimonBalance) > 0
+                }
+              });
             }}
           >
             Connect Wallet
@@ -65,8 +103,11 @@ const WalletConnection: React.FC = () => {
                 className="close-button" 
                 onClick={() => {
                   setShowWalletList(false);
-                  console.log('Closing wallet selection popup');
-                  socketService.emitWalletEvent('walletSelectionClosed', {});
+                  socketService.emitWalletEvent('walletSelectionClosed', {
+                    timestamp: new Date().toISOString(),
+                    userAction: 'manual_close',
+                    timeOpen: Date.now() - new Date().getTime()
+                  });
                 }}
               >
                 ×

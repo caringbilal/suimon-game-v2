@@ -23,12 +23,32 @@ export class SocketService {
             return;
         }
 
-        console.log(`Emitting wallet event: ${eventType}`, data);
-        this.socket.emit('walletEvent', {
+        const eventData = {
             type: eventType,
             data: data,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            environment: process.env.NODE_ENV || 'development',
+            clientInfo: {
+                userAgent: navigator.userAgent,
+                language: navigator.language,
+                platform: navigator.platform
+            }
+        };
+
+        // Enhanced console logging
+        console.group(`Wallet Event: ${eventType}`);
+        console.log('Event Data:', eventData);
+        console.log('Client State:', {
+            networkStatus: navigator.onLine ? 'online' : 'offline',
+            timestamp: new Date().toLocaleString()
         });
+        if (data.error) {
+            console.error('Error Details:', data.error);
+        }
+        console.groupEnd();
+
+        // Emit to backend
+        this.socket.emit('walletEvent', eventData);
     }
 }
 
