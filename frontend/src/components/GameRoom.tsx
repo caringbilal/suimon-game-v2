@@ -47,6 +47,7 @@ const GameRoom: React.FC<GameRoomProps> = ({
       const response = await createStakedGame(
         suiClient,
         signAndExecuteTransactionBlock,
+        walletAddress,
         tokenType,
         amount,
         playerName
@@ -110,6 +111,7 @@ const GameRoom: React.FC<GameRoomProps> = ({
       const response = await joinStakedGame(
         suiClient,
         signAndExecuteTransactionBlock,
+        walletAddress,
         gameObjectId,
         tokenType,
         amount
