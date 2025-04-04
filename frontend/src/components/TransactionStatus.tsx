@@ -9,6 +9,7 @@ interface TransactionStatusProps {
   onCreateGame: (tokenType: 'SUI' | 'SUIMON', amount: string) => void;
   tokenType: 'SUI' | 'SUIMON';
   amount: string;
+  transactionHash?: string;
 }
 
 const TransactionStatus: React.FC<TransactionStatusProps> = ({ 
@@ -16,7 +17,8 @@ const TransactionStatus: React.FC<TransactionStatusProps> = ({
   error, 
   onCreateGame,
   tokenType,
-  amount
+  amount,
+  transactionHash
  }) => {
   const getStatusText = () => {
     switch (stage) {
@@ -25,11 +27,11 @@ const TransactionStatus: React.FC<TransactionStatusProps> = ({
       case 'preparing':
         return 'Preparing transaction...';
       case 'signing':
-        return 'Waiting for signature...';
+        return 'Please approve the transaction in your wallet...';
       case 'executing':
-        return 'Executing transaction...';
+        return 'Executing transaction on blockchain...';
       case 'confirming':
-        return 'Confirming on blockchain...';
+        return 'Waiting for blockchain confirmation...';
       case 'success':
         return 'Transaction successful!';
       case 'error':
@@ -41,7 +43,7 @@ const TransactionStatus: React.FC<TransactionStatusProps> = ({
 
   return (
     <div className={`transaction-status ${stage}`}>
-      {stage === 'success' ? (
+      {stage === 'success' as TransactionStage ? (
         <button 
           className="create-paid-game-button"
           onClick={() => onCreateGame(tokenType, amount)}
@@ -53,6 +55,18 @@ const TransactionStatus: React.FC<TransactionStatusProps> = ({
           <div className="status-text">{getStatusText()}</div>
           {stage !== 'idle' && stage !== 'error' && (
             <div className="loading-spinner"></div>
+          )}
+          {transactionHash && ((stage === 'executing') || (stage === 'confirming') || (stage === 'success')) && (
+            <div className="transaction-hash">
+              <a 
+                href={`https://explorer.sui.io/txblock/${transactionHash}?network=testnet`} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="hash-link"
+              >
+                View on Explorer
+              </a>
+            </div>
           )}
           {stage === 'error' && (
             <div className="error-details">{error}</div>

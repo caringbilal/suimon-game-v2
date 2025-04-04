@@ -42,31 +42,41 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
     }
   };
 
-  const handleStakeButtonClick = (tokenType: 'SUI' | 'SUIMON', value: string) => {
+  const handleStakeButtonClick = async (tokenType: 'SUI' | 'SUIMON', value: string) => {
     if (isConnected) {
-      // Simulate transaction flow
+      // Set the stake amount and prepare for transaction
       setStakeAmount(value);
       setTransactionStage('preparing');
       
-      // Simulate transaction stages with timeouts
-      setTimeout(() => {
+      try {
+        // In a real implementation, we would call the blockchain here
+        // For now, we'll use the same flow but prepare for real transactions
+        // The actual blockchain interaction will happen in the GameRoom component
+        
+        // Simulate wallet approval request
         setTransactionStage('signing');
-        setTimeout(() => {
-          setTransactionStage('executing');
-          setTimeout(() => {
-            setTransactionStage('confirming');
-            setTimeout(() => {
-              // Simulate success (in a real app, this would be based on actual transaction result)
-              setTransactionStage('success');
-            }, 2000);
-          }, 1500);
-        }, 2000);
-      }, 1500);
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Simulate transaction execution
+        setTransactionStage('executing');
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        
+        // Simulate transaction confirmation
+        setTransactionStage('confirming');
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Simulate success
+        setTransactionStage('success');
+      } catch (error) {
+        console.error('Transaction error:', error);
+        setTransactionError('Transaction failed. Please try again.');
+        setTransactionStage('error');
+      }
     } else {
       // If wallet is not connected, we don't proceed but the button is still clickable
       console.log('Please connect wallet first');
     }
-  };
+  }
   
   const handleCreateGame = (tokenType: 'SUI' | 'SUIMON', amount: string) => {
     // Reset transaction state
