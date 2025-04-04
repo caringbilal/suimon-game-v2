@@ -1,0 +1,17 @@
+.disconnect-wallet-button {
+  background: #ff4444;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  margin-top: 0.5rem;
+  width: auto;
+  display: inline-block;
+}
+
+.disconnect-wallet-button:hover {
+  background: #ff0000;
+}

@@ -20,6 +20,7 @@ import ParticlesBackground from '@components/Particles';
 import { useSuiWallet } from './context/SuiWalletContext';
 import GameOptions from './components/GameOptions';
 import WalletConnection from './components/WalletConnection';
+import DisconnectWalletButton from './components/DisconnectWalletButton';
 import LogoutButton from './components/LogoutButton';
 
 const SERVER_URL = process.env.REACT_APP_API_URL || 'http://localhost:3002';
@@ -498,19 +499,24 @@ function App() {
               </div>
             </div>
           ) : (
-            <GameOptions
-              onCreateGame={(tokenType, amount) => {
-                const playerData = {
-                  playerId: user?.sub,
-                  playerName: user?.name,
-                  avatar: user?.picture,
-                  gameType: 'paid',
-                  tokenType,
-                  tokenAmount: amount,
-                };
-                socket.emit('createRoom', playerData);
-              }}
-            />
+            <>
+              <div className="wallet-header">
+                <DisconnectWalletButton />
+              </div>
+              <GameOptions
+                onCreateGame={(tokenType, amount) => {
+                  const playerData = {
+                    playerId: user?.sub,
+                    playerName: user?.name,
+                    avatar: user?.picture,
+                    gameType: 'paid',
+                    tokenType,
+                    tokenAmount: amount,
+                  };
+                  socket.emit('createRoom', playerData);
+                }}
+              />
+            </>
           )}
         </div>
 

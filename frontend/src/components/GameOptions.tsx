@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useSuiWallet } from '../context/SuiWalletContext';
+import TransactionStatus, { TransactionStage } from './TransactionStatus';
 import './GameOptions.css';
 
 interface GameOptionsProps {
@@ -9,6 +10,9 @@ interface GameOptionsProps {
 const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
   const { suiBalance, suimonBalance, isConnected } = useSuiWallet();
   const [selectedToken, setSelectedToken] = useState<'SUI' | 'SUIMON'>('SUI');
+  const [transactionStage, setTransactionStage] = useState<TransactionStage>('idle');
+  const [transactionError, setTransactionError] = useState<string | undefined>();
+  const [stakeAmount, setStakeAmount] = useState<string>('');
 
   const suiOptions = [
     { label: '0.0005 SUI', value: '0.0005' },
@@ -40,11 +44,37 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
 
   const handleStakeButtonClick = (tokenType: 'SUI' | 'SUIMON', value: string) => {
     if (isConnected) {
-      onCreateGame(tokenType, value);
+      // Simulate transaction flow
+      setStakeAmount(value);
+      setTransactionStage('preparing');
+      
+      // Simulate transaction stages with timeouts
+      setTimeout(() => {
+        setTransactionStage('signing');
+        setTimeout(() => {
+          setTransactionStage('executing');
+          setTimeout(() => {
+            setTransactionStage('confirming');
+            setTimeout(() => {
+              // Simulate success (in a real app, this would be based on actual transaction result)
+              setTransactionStage('success');
+            }, 2000);
+          }, 1500);
+        }, 2000);
+      }, 1500);
     } else {
       // If wallet is not connected, we don't proceed but the button is still clickable
       console.log('Please connect wallet first');
     }
+  };
+  
+  const handleCreateGame = (tokenType: 'SUI' | 'SUIMON', amount: string) => {
+    // Reset transaction state
+    setTransactionStage('idle');
+    setTransactionError(undefined);
+    
+    // Call the parent component's onCreateGame function
+    onCreateGame(tokenType, amount);
   };
 
   return (
@@ -66,22 +96,32 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
         </button>
       </div>
 
-      <div className="stake-options">
-        <h3>Select Stake Amount</h3>
-        <div className="options-grid">
-          {(selectedToken === 'SUI' ? suiOptions : suimonOptions).map((option) => (
-            <button
-              key={option.value}
-              className="stake-button"
-              onClick={() => handleStakeButtonClick(selectedToken, option.value)}
-              disabled={!isConnected}
-            >
-              {option.label}
-              <span className="gas-fee">+ Gas Fee</span>
-            </button>
-          ))}
+      {transactionStage === 'idle' ? (
+        <div className="stake-options">
+          <h3>Select Stake Amount</h3>
+          <div className="options-grid">
+            {(selectedToken === 'SUI' ? suiOptions : suimonOptions).map((option) => (
+              <button
+                key={option.value}
+                className="stake-button"
+                onClick={() => handleStakeButtonClick(selectedToken, option.value)}
+                disabled={!isConnected}
+              >
+                {option.label}
+                <span className="gas-fee">+ Gas Fee</span>
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      ) : (
+        <TransactionStatus 
+          stage={transactionStage}
+          error={transactionError}
+          onCreateGame={handleCreateGame}
+          tokenType={selectedToken}
+          amount={stakeAmount}
+        />
+      )}
 
       {!isConnected && (
         <div className="connect-wallet-prompt">
