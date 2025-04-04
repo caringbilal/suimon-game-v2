@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
+import { useSuiClient, useSignAndExecuteTransaction } from '@mysten/dapp-kit';
 import { useSuiWallet } from '../context/SuiWalletContext';
 import TransactionStatus, { TransactionStage } from './TransactionStatus';
+import { createStakedGame } from '../utils/suiTransactions';
+import { socketService } from '../services/socketService';
 import './GameOptions.css';
 
 interface GameOptionsProps {
@@ -8,11 +11,14 @@ interface GameOptionsProps {
 }
 
 const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
-  const { suiBalance, suimonBalance, isConnected } = useSuiWallet();
+  const { walletAddress, suiBalance, suimonBalance, isConnected } = useSuiWallet();
+  const suiClient = useSuiClient();
+  const { mutate: signAndExecuteTransactionBlock } = useSignAndExecuteTransaction();
   const [selectedToken, setSelectedToken] = useState<'SUI' | 'SUIMON'>('SUI');
   const [transactionStage, setTransactionStage] = useState<TransactionStage>('idle');
   const [transactionError, setTransactionError] = useState<string | undefined>();
   const [stakeAmount, setStakeAmount] = useState<string>('');
+  const [transactionHash, setTransactionHash] = useState<string | undefined>();
 
   const suiOptions = [
     { label: '0.0005 SUI', value: '0.0005' },
@@ -43,38 +49,82 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
   };
 
   const handleStakeButtonClick = async (tokenType: 'SUI' | 'SUIMON', value: string) => {
-    if (isConnected) {
-      // Set the stake amount and prepare for transaction
-      setStakeAmount(value);
-      setTransactionStage('preparing');
-      
-      try {
-        // In a real implementation, we would call the blockchain here
-        // For now, we'll use the same flow but prepare for real transactions
-        // The actual blockchain interaction will happen in the GameRoom component
-        
-        // Simulate wallet approval request
-        setTransactionStage('signing');
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        // Simulate transaction execution
-        setTransactionStage('executing');
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        
-        // Simulate transaction confirmation
-        setTransactionStage('confirming');
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        // Simulate success
-        setTransactionStage('success');
-      } catch (error) {
-        console.error('Transaction error:', error);
-        setTransactionError('Transaction failed. Please try again.');
-        setTransactionStage('error');
-      }
-    } else {
-      // If wallet is not connected, we don't proceed but the button is still clickable
+    if (!isConnected || !walletAddress) {
       console.log('Please connect wallet first');
+      return;
+    }
+    
+    // Set the stake amount and prepare for transaction
+    setStakeAmount(value);
+    setTransactionStage('preparing');
+    
+    try {
+      // Start transaction flow and log it to backend
+      socketService.emitWalletEvent('transactionStarted', {
+        tokenType,
+        amount: value,
+        playerAddress: walletAddress,
+        playerName: 'Player', // Default name
+        stage: 'preparing',
+        action: 'stakeTransaction'
+      });
+      
+      // Move to signing stage - this will trigger the wallet popup
+      setTransactionStage('signing');
+      socketService.emitWalletEvent('transactionSigning', {
+        tokenType,
+        amount: value,
+        playerAddress: walletAddress
+      });
+      
+      // Call the actual blockchain transaction function
+      const response = await createStakedGame(
+        suiClient,
+        signAndExecuteTransactionBlock,
+        walletAddress,
+        tokenType,
+        value,
+        'Player' // Default player name
+      );
+      
+      // Transaction is being executed
+      setTransactionStage('executing');
+      setTransactionHash(response.digest);
+      socketService.emitWalletEvent('transactionExecuting', {
+        transactionHash: response.digest,
+        playerAddress: walletAddress,
+        tokenType,
+        amount: value
+      });
+
+      // Wait for confirmation
+      setTransactionStage('confirming');
+      socketService.emitWalletEvent('transactionConfirming', {
+        transactionHash: response.digest,
+        playerAddress: walletAddress
+      });
+      
+      // Transaction successful
+      setTransactionStage('success');
+      socketService.emitWalletEvent('transactionSuccess', {
+        transactionHash: response.digest,
+        playerAddress: walletAddress,
+        action: 'stakeTransaction'
+      });
+    } catch (error: any) {
+      console.error('Transaction error:', error);
+      setTransactionError(error.message || 'Transaction failed. Please try again.');
+      setTransactionStage('error');
+      
+      // Emit detailed error event
+      socketService.emitWalletEvent('transactionError', {
+        error: error.message,
+        errorObject: JSON.stringify(error),
+        stage: 'staking',
+        tokenType,
+        amount: value,
+        playerAddress: walletAddress
+      });
     }
   }
   
@@ -130,6 +180,7 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
           onCreateGame={handleCreateGame}
           tokenType={selectedToken}
           amount={stakeAmount}
+          transactionHash={transactionHash}
         />
       )}
 

@@ -35,15 +35,39 @@ const GameRoom: React.FC<GameRoomProps> = ({
     if (!isConnected || !walletAddress) {
       setTransactionError('Wallet not connected');
       setTransactionStage('error');
+      socketService.emitWalletEvent('walletConnectionError', {
+        roomId,
+        error: 'Wallet not connected',
+        playerName,
+        action: 'createGame'
+      });
       return;
     }
 
     try {
-      // Start transaction flow
+      // Start transaction flow and log it to backend
       setTransactionStage('preparing');
+      socketService.emitWalletEvent('transactionStarted', {
+        roomId,
+        tokenType,
+        amount,
+        playerAddress: walletAddress,
+        playerName,
+        stage: 'preparing',
+        action: 'createGame'
+      });
       
       // Create transaction
       setTransactionStage('signing');
+      socketService.emitWalletEvent('transactionSigning', {
+        roomId,
+        tokenType,
+        amount,
+        playerAddress: walletAddress,
+        playerName
+      });
+      
+      // Call the createStakedGame function with all required parameters
       const response = await createStakedGame(
         suiClient,
         signAndExecuteTransactionBlock,
@@ -56,9 +80,21 @@ const GameRoom: React.FC<GameRoomProps> = ({
       // Transaction is being executed
       setTransactionStage('executing');
       setTransactionHash(response.digest);
+      socketService.emitWalletEvent('transactionExecuting', {
+        roomId,
+        transactionHash: response.digest,
+        playerAddress: walletAddress,
+        tokenType,
+        amount
+      });
 
       // Wait for confirmation
       setTransactionStage('confirming');
+      socketService.emitWalletEvent('transactionConfirming', {
+        roomId,
+        transactionHash: response.digest,
+        playerAddress: walletAddress
+      });
       
       // Extract the game object ID from the transaction response
       const gameObjectId = response.effects?.created?.[0]?.reference?.objectId;
@@ -77,6 +113,13 @@ const GameRoom: React.FC<GameRoomProps> = ({
 
         // Transaction successful
         setTransactionStage('success');
+        socketService.emitWalletEvent('transactionSuccess', {
+          roomId,
+          gameObjectId,
+          transactionHash: response.digest,
+          playerAddress: walletAddress,
+          action: 'createGame'
+        });
       } else {
         throw new Error('Game object ID not found in transaction response');
       }
@@ -85,11 +128,15 @@ const GameRoom: React.FC<GameRoomProps> = ({
       setTransactionError(error.message || 'Transaction failed');
       setTransactionStage('error');
       
-      // Emit error event
+      // Emit detailed error event
       socketService.emitWalletEvent('transactionError', {
         roomId,
         error: error.message,
-        stage: 'staking'
+        errorObject: JSON.stringify(error),
+        stage: 'staking',
+        tokenType,
+        amount,
+        playerAddress: walletAddress
       });
     }
   };
@@ -99,15 +146,37 @@ const GameRoom: React.FC<GameRoomProps> = ({
     if (!isConnected || !walletAddress) {
       setTransactionError('Wallet not connected');
       setTransactionStage('error');
+      socketService.emitWalletEvent('walletConnectionError', {
+        roomId,
+        error: 'Wallet not connected',
+        action: 'joinGame'
+      });
       return;
     }
 
     try {
       // Start transaction flow
       setTransactionStage('preparing');
+      socketService.emitWalletEvent('transactionStarted', {
+        roomId,
+        tokenType,
+        amount,
+        playerAddress: walletAddress,
+        gameObjectId,
+        stage: 'preparing',
+        action: 'joinGame'
+      });
       
       // Create transaction
       setTransactionStage('signing');
+      socketService.emitWalletEvent('transactionSigning', {
+        roomId,
+        tokenType,
+        amount,
+        playerAddress: walletAddress,
+        gameObjectId
+      });
+      
       const response = await joinStakedGame(
         suiClient,
         signAndExecuteTransactionBlock,
@@ -120,9 +189,23 @@ const GameRoom: React.FC<GameRoomProps> = ({
       // Transaction is being executed
       setTransactionStage('executing');
       setTransactionHash(response.digest);
+      socketService.emitWalletEvent('transactionExecuting', {
+        roomId,
+        transactionHash: response.digest,
+        playerAddress: walletAddress,
+        gameObjectId,
+        tokenType,
+        amount
+      });
 
       // Wait for confirmation
       setTransactionStage('confirming');
+      socketService.emitWalletEvent('transactionConfirming', {
+        roomId,
+        transactionHash: response.digest,
+        playerAddress: walletAddress,
+        gameObjectId
+      });
       
       // Emit event to server
       socketService.emitWalletEvent('gameJoined', {
@@ -134,6 +217,13 @@ const GameRoom: React.FC<GameRoomProps> = ({
 
       // Transaction successful
       setTransactionStage('success');
+      socketService.emitWalletEvent('transactionSuccess', {
+        roomId,
+        gameObjectId,
+        transactionHash: response.digest,
+        playerAddress: walletAddress,
+        action: 'joinGame'
+      });
       
       // Call the onJoinGame callback
       onJoinGame();
@@ -142,11 +232,16 @@ const GameRoom: React.FC<GameRoomProps> = ({
       setTransactionError(error.message || 'Transaction failed');
       setTransactionStage('error');
       
-      // Emit error event
+      // Emit detailed error event
       socketService.emitWalletEvent('transactionError', {
         roomId,
         error: error.message,
-        stage: 'joining'
+        errorObject: JSON.stringify(error),
+        stage: 'joining',
+        gameObjectId,
+        tokenType,
+        amount,
+        playerAddress: walletAddress
       });
     }
   };
@@ -156,15 +251,35 @@ const GameRoom: React.FC<GameRoomProps> = ({
     if (!isConnected || !walletAddress) {
       setTransactionError('Wallet not connected');
       setTransactionStage('error');
+      socketService.emitWalletEvent('walletConnectionError', {
+        roomId,
+        error: 'Wallet not connected',
+        action: 'claimRewards'
+      });
       return;
     }
 
     try {
       // Start transaction flow
       setTransactionStage('preparing');
+      socketService.emitWalletEvent('transactionStarted', {
+        roomId,
+        gameObjectId,
+        treasuryObjectId,
+        playerAddress: walletAddress,
+        stage: 'preparing',
+        action: 'claimRewards'
+      });
       
       // Create transaction
       setTransactionStage('signing');
+      socketService.emitWalletEvent('transactionSigning', {
+        roomId,
+        gameObjectId,
+        treasuryObjectId,
+        playerAddress: walletAddress
+      });
+      
       const response = await declareWinner(
         suiClient,
         signAndExecuteTransactionBlock,
@@ -176,9 +291,22 @@ const GameRoom: React.FC<GameRoomProps> = ({
       // Transaction is being executed
       setTransactionStage('executing');
       setTransactionHash(response.digest);
+      socketService.emitWalletEvent('transactionExecuting', {
+        roomId,
+        transactionHash: response.digest,
+        playerAddress: walletAddress,
+        gameObjectId,
+        treasuryObjectId
+      });
 
       // Wait for confirmation
       setTransactionStage('confirming');
+      socketService.emitWalletEvent('transactionConfirming', {
+        roomId,
+        transactionHash: response.digest,
+        playerAddress: walletAddress,
+        gameObjectId
+      });
       
       // Emit event to server
       socketService.emitWalletEvent('rewardsClaimed', {
@@ -190,16 +318,27 @@ const GameRoom: React.FC<GameRoomProps> = ({
 
       // Transaction successful
       setTransactionStage('success');
+      socketService.emitWalletEvent('transactionSuccess', {
+        roomId,
+        gameObjectId,
+        transactionHash: response.digest,
+        playerAddress: walletAddress,
+        action: 'claimRewards'
+      });
     } catch (error: any) {
       console.error('Claim rewards transaction error:', error);
       setTransactionError(error.message || 'Transaction failed');
       setTransactionStage('error');
       
-      // Emit error event
+      // Emit detailed error event
       socketService.emitWalletEvent('transactionError', {
         roomId,
         error: error.message,
-        stage: 'claiming'
+        errorObject: JSON.stringify(error),
+        stage: 'claiming',
+        gameObjectId,
+        treasuryObjectId,
+        playerAddress: walletAddress
       });
     }
   };
@@ -311,6 +450,7 @@ const GameRoom: React.FC<GameRoomProps> = ({
           onCreateGame={() => {}} // This is handled differently in this component
           tokenType={gameRoomData?.tokenType || 'SUI'}
           amount={gameRoomData?.stakeAmount || '0'}
+          transactionHash={transactionHash} // Pass transaction hash to make transaction details visible
         />
       )}
       
