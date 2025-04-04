@@ -22,11 +22,20 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
     { label: '100,000 SUIMON', value: '100000' }
   ];
 
-  const formatBalance = (balance: string) => {
-    const num = parseFloat(balance);
+  const formatBalance = (balance: string, tokenType: string = 'SUI') => {
+    // SUI uses 9 decimal places (1 SUI = 10^9 MIST)
+    const num = tokenType === 'SUI' ? parseFloat(balance) / 1_000_000_000 : parseFloat(balance); // Divide by 10^9 only for SUI tokens
     if (num === 0) return '0';
     if (num < 0.0001) return '< 0.0001';
-    return num.toLocaleString(undefined, { maximumFractionDigits: 4 });
+    
+    // Format with appropriate precision based on the value
+    if (num >= 1000) {
+      return num.toLocaleString(undefined, { maximumFractionDigits: 2 });
+    } else if (num >= 1) {
+      return num.toLocaleString(undefined, { maximumFractionDigits: 3 });
+    } else {
+      return num.toLocaleString(undefined, { maximumFractionDigits: 4 });
+    }
   };
 
   const handleStakeButtonClick = (tokenType: 'SUI' | 'SUIMON', value: string) => {
@@ -46,14 +55,14 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
           onClick={() => setSelectedToken('SUI')}
         >
           SUI Token
-          <span className="balance">{formatBalance(suiBalance)} SUI</span>
+          <span className="balance">{formatBalance(suiBalance, 'SUI')} SUI</span>
         </button>
         <button
           className={`token-button ${selectedToken === 'SUIMON' ? 'active' : ''}`}
           onClick={() => setSelectedToken('SUIMON')}
         >
           SUIMON Token
-          <span className="balance">{formatBalance(suimonBalance)} SUIMON</span>
+          <span className="balance">{formatBalance(suimonBalance, 'SUIMON')} SUIMON</span>
         </button>
       </div>
 

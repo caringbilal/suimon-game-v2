@@ -395,12 +395,6 @@ export default React.memo<GameBoardProps>(
       <div className="game-board">
         <div className="wallet-info">
           <WalletConnection />
-          {isConnected && (
-            <div className="token-balances">
-              <p>SUI Balance: {parseFloat(suiBalance) / 1e9} SUI</p>
-              <p>SUIMON Balance: {parseFloat(suimonBalance)} SUIMON</p>
-            </div>
-          )}
         </div>
         <div className="room-info-box">
           <h3>Room ID: {roomId}</h3>

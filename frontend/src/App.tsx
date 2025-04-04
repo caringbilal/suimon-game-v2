@@ -20,6 +20,7 @@ import ParticlesBackground from '@components/Particles';
 import { useSuiWallet } from './context/SuiWalletContext';
 import GameOptions from './components/GameOptions';
 import WalletConnection from './components/WalletConnection';
+import LogoutButton from './components/LogoutButton';
 
 const SERVER_URL = process.env.REACT_APP_API_URL || 'http://localhost:3002';
 
@@ -453,16 +454,24 @@ function App() {
 
   return (
     <div className="lobby">
-      {isConnected && (
-        <div className="token-balances">
-          <p>SUI Balance: {parseFloat(suiBalance) / 1e9} SUI</p>
-          <p>SUIMON Balance: {parseFloat(suimonBalance)} SUIMON</p>
-        </div>
-      )}
+      {/* Removed token balances from top section as they're already shown in the paid game area */}
       <ParticlesBackground className="particles lobby-particles" />
       <div className="user-profile">
         <img src={playerInfo.avatar} alt="Profile" className="profile-image" crossOrigin="anonymous" referrerPolicy="no-referrer" />
         <h2>Welcome, {user?.name || 'Player'}!</h2>
+        {isAuthenticated && (
+          <LogoutButton 
+            className="room-info-logout" 
+            onSignOut={() => {
+              socket.emit('logout', user?.sub);
+              signOut();
+              setOpponentInfo(null);
+              setGameState(null);
+              setRoomId(null);
+              setPlayerRole(null);
+            }} 
+          />
+        )}
       </div>
 
       <h1>Suimon Card Game</h1>

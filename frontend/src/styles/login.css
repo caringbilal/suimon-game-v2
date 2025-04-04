@@ -74,6 +74,18 @@
   display: flex;
   align-items: center;
   margin-bottom: 20px;
+  position: relative;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+.user-profile .room-info-logout {
+  font-size: 0.9em;
+  padding: 6px 12px;
+  margin-top: 0;
+  margin-left: 10px;
+  width: auto;
 }
 
 .profile-image {

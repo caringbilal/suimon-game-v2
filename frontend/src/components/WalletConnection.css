@@ -40,6 +40,7 @@
   margin-top: 1rem;
   width: 100%;
   max-width: 250px; /* Match the connect button width */
+  z-index: 10; /* Ensure it's above other elements */
 }
 
 .disconnect-button:hover {
@@ -123,7 +124,7 @@
 
 /* Target both the custom class and the default button styling */
 .custom-connect-button,
-.wallet-connection button {
+.wallet-connection button:not(.disconnect-button) {
   cursor: pointer !important;
   padding: 12px 24px !important;
   font-weight: bold !important;
@@ -144,8 +145,37 @@
 }
 
 .custom-connect-button:hover,
-.wallet-connection button:hover {
+.wallet-connection button:not(.disconnect-button):hover {
   background-color: #00e676 !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Disconnect button styling */
+.disconnect-button {
+  cursor: pointer !important;
+  padding: 10px 20px !important;
+  font-weight: bold !important;
+  border-radius: 8px !important;
+  background-color: #ff4d4d !important; /* Red background */
+  color: white !important;
+  border: none !important;
+  transition: all 0.3s ease !important;
+  width: 100% !important;
+  max-width: 250px !important;
+  text-align: center !important;
+  font-size: 0.9rem !important;
+  text-transform: uppercase !important;
+  letter-spacing: 1px !important;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1) !important;
+  position: relative !important;
+  z-index: 10 !important;
+  margin-top: 10px !important;
+  display: block !important;
+}
+
+.disconnect-button:hover {
+  background-color: #ff3333 !important; /* Darker red on hover */
   transform: translateY(-2px) !important;
   box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2) !important;
 }

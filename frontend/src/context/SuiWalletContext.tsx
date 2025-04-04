@@ -52,7 +52,10 @@ export const SuiWalletProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setWalletAddress(null);
       setSuiBalance('0');
       setSuimonBalance('0');
-      socketService.emitWalletEvent('walletDisconnected', {});
+      socketService.emitWalletEvent('walletDisconnected', {
+        timestamp: new Date().toISOString(),
+        userAction: 'wallet_disconnected'
+      });
     }
   }, [dappKitConnected, currentWallet]);
 

@@ -17,6 +17,7 @@ const WalletConnection: React.FC = () => {
       isLoading, 
       error
     });
+    console.log('Component Mount - isConnected:', isConnected); // Debug log
   }, [isConnected, walletAddress, isLoading, error]);
 
   useEffect(() => {
@@ -25,12 +26,7 @@ const WalletConnection: React.FC = () => {
     }
   }, [isConnected, updateBalances]);
 
-  const formatBalance = (balance: string) => {
-    const num = parseFloat(balance);
-    if (num === 0) return '0';
-    if (num < 0.0001) return '< 0.0001';
-    return num.toLocaleString(undefined, { maximumFractionDigits: 4 });
-  };
+  // Removed formatBalance function as it's no longer needed for displaying balances in the top section
 
   const CustomConnectButton = () => {
     const [showWalletList, setShowWalletList] = useState(false);
@@ -46,6 +42,7 @@ const WalletConnection: React.FC = () => {
     ];
 
     console.log('Available Wallets:', availableWallets);
+    console.log('CustomConnectButton - isConnected:', isConnected); // Debug log
 
     const handleConnect = async (walletName: string) => {
       try {
@@ -71,6 +68,7 @@ const WalletConnection: React.FC = () => {
         await connect({ wallet: selectedWallet });
         
         setShowWalletList(false);
+        console.log('After Connect - isConnected:', isConnected); // Debug log
       } catch (err) {
         console.error('Failed to connect wallet:', err);
         setConnectionError(`Failed to connect: ${err instanceof Error ? err.message : 'Unknown error'}`);
@@ -104,7 +102,7 @@ const WalletConnection: React.FC = () => {
               <div className="wallet-list-header">
                 <h3>Connect a Wallet</h3>
                 <button 
-                  className="close-button" 
+                  className="wallet-close-icon"
                   onClick={() => {
                     setShowWalletList(false);
                     socketService.emitWalletEvent('walletSelectionClosed', {
@@ -134,7 +132,7 @@ const WalletConnection: React.FC = () => {
           </div>
         )}
         {connectionError && <div className="connection-error">{connectionError}</div>}
-        {isConnected && (
+        {isConnected ? (
           <button 
             className="disconnect-button" 
             onClick={() => {
@@ -147,7 +145,7 @@ const WalletConnection: React.FC = () => {
           >
             Disconnect Wallet
           </button>
-        )}
+        ) : null}
       </div>
     );
   };
@@ -163,20 +161,7 @@ const WalletConnection: React.FC = () => {
                 ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`
                 : 'Address not available'}
             </div>
-            <div className="balance-container">
-              <div className="balance-item">
-                <span className="balance-label">SUI:</span>
-                <span className="balance-value">
-                  {isLoading ? 'Loading...' : formatBalance(suiBalance)}
-                </span>
-              </div>
-              <div className="balance-item">
-                <span className="balance-label">SUIMON:</span>
-                <span className="balance-value">
-                  {isLoading ? 'Loading...' : formatBalance(suimonBalance)}
-                </span>
-              </div>
-            </div>
+            {/* Balance information is hidden as it's already shown in the paid game area */}
           </div>
         ) : (
           <div className="connect-prompt">
