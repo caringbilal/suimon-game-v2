@@ -6,11 +6,21 @@ import TransactionStatus, { TransactionStage } from './TransactionStatus';
 import { socketService } from '../services/socketService';
 import './GameOptions.css';
 
-// Define a custom type for the wallet account
+// Define a custom type for the wallet account with updated method names
 interface CustomWalletAccount {
-  signTransactionBlock: (args: { transactionBlock: TransactionBlock }) => Promise<{
-    transactionBlockBytes: Uint8Array;
+  signAndExecuteTransaction: (args: {
+    transaction: TransactionBlock;
+    options?: {
+      showInput?: boolean;
+      showEffects?: boolean;
+      showEvents?: boolean;
+      showObjectChanges?: boolean;
+    };
+    requestType?: 'WaitForLocalExecution';
+  }) => Promise<any>;
+  signPersonalMessage: (args: { message: Uint8Array }) => Promise<{
     signature: string;
+    signedMessage: Uint8Array;
   }>;
 }
 
@@ -21,7 +31,7 @@ interface GameOptionsProps {
 const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
   const { walletAddress, suiBalance, suimonBalance, isConnected } = useSuiWallet();
   const suiClient = useSuiClient();
-  const currentAccount = useCurrentAccount() as CustomWalletAccount | null; // Use the custom type
+  const currentAccount = useCurrentAccount() as CustomWalletAccount | null;
   const [selectedToken, setSelectedToken] = useState<'SUI' | 'SUIMON'>('SUI');
   const [transactionStage, setTransactionStage] = useState<TransactionStage>('idle');
   const [transactionError, setTransactionError] = useState<string | undefined>();
@@ -103,54 +113,51 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
         arguments: [coin, tx.pure(tokenType === 'SUIMON')],
       });
 
-      // Ensure currentAccount supports signTransactionBlock
-      if (!currentAccount || !('signTransactionBlock' in currentAccount)) {
-        throw new Error('Wallet account is not properly connected or does not support signing transactions');
+      // Log currentAccount to inspect available methods
+      console.log('currentAccount:', currentAccount);
+
+      // Check if signAndExecuteTransaction is supported
+      if (currentAccount && 'signAndExecuteTransaction' in currentAccount) {
+        // Sign and execute the transaction in one step
+        const response = await currentAccount.signAndExecuteTransaction({
+          transaction: tx,
+          requestType: 'WaitForLocalExecution',
+          options: {
+            showInput: true,
+            showEffects: true,
+            showEvents: true,
+            showObjectChanges: true,
+          },
+        });
+
+        if (!response.digest) {
+          throw new Error('Transaction failed: No transaction digest received');
+        }
+
+        setTransactionStage('executing');
+        setTransactionHash(response.digest);
+        socketService.emitWalletEvent('transactionExecuting', {
+          transactionHash: response.digest,
+          playerAddress: walletAddress,
+          tokenType,
+          amount: value,
+        });
+
+        setTransactionStage('confirming');
+        socketService.emitWalletEvent('transactionConfirming', {
+          transactionHash: response.digest,
+          playerAddress: walletAddress,
+        });
+
+        setTransactionStage('success');
+        socketService.emitWalletEvent('transactionSuccess', {
+          transactionHash: response.digest,
+          playerAddress: walletAddress,
+          action: 'stakeTransaction',
+        });
+      } else {
+        throw new Error('Wallet does not support transaction signing for this operation');
       }
-
-      // Sign the transaction block
-      const signedTx = await currentAccount.signTransactionBlock({
-        transactionBlock: tx,
-      });
-
-      // Execute the signed transaction
-      const response = await suiClient.executeTransactionBlock({
-        transactionBlock: signedTx.transactionBlockBytes,
-        signature: signedTx.signature,
-        requestType: 'WaitForLocalExecution',
-        options: {
-          showInput: true,
-          showEffects: true,
-          showEvents: true,
-          showObjectChanges: true,
-        },
-      });
-
-      if (!response.digest) {
-        throw new Error('Transaction failed: No transaction digest received');
-      }
-
-      setTransactionStage('executing');
-      setTransactionHash(response.digest);
-      socketService.emitWalletEvent('transactionExecuting', {
-        transactionHash: response.digest,
-        playerAddress: walletAddress,
-        tokenType,
-        amount: value,
-      });
-
-      setTransactionStage('confirming');
-      socketService.emitWalletEvent('transactionConfirming', {
-        transactionHash: response.digest,
-        playerAddress: walletAddress,
-      });
-
-      setTransactionStage('success');
-      socketService.emitWalletEvent('transactionSuccess', {
-        transactionHash: response.digest,
-        playerAddress: walletAddress,
-        action: 'stakeTransaction',
-      });
     } catch (error: any) {
       console.error('Transaction preparation error:', error);
       console.error('Transaction error details:', {
