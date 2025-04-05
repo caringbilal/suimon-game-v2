@@ -6,22 +6,9 @@ import TransactionStatus, { TransactionStage } from './TransactionStatus';
 import { socketService } from '../services/socketService';
 import './GameOptions.css';
 
-// Define a custom type for the wallet account with updated method names
+// Define a minimal interface for the wallet account
 interface CustomWalletAccount {
-  signAndExecuteTransaction: (args: {
-    transaction: TransactionBlock;
-    options?: {
-      showInput?: boolean;
-      showEffects?: boolean;
-      showEvents?: boolean;
-      showObjectChanges?: boolean;
-    };
-    requestType?: 'WaitForLocalExecution';
-  }) => Promise<any>;
-  signPersonalMessage: (args: { message: Uint8Array }) => Promise<{
-    signature: string;
-    signedMessage: Uint8Array;
-  }>;
+  [key: string]: any; // Allow any method to be called dynamically
 }
 
 interface GameOptionsProps {
@@ -76,6 +63,13 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
     setTransactionStage('preparing');
 
     try {
+      console.log('Starting transaction preparation...');
+      console.log('Wallet Address:', walletAddress);
+      console.log('Token Type:', tokenType);
+      console.log('Stake Amount:', value);
+      console.log('SUI Balance:', suiBalance);
+      console.log('SUIMON Balance:', suimonBalance);
+
       socketService.emitWalletEvent('transactionStarted', {
         tokenType,
         amount: value,
@@ -90,36 +84,48 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
 
       const tx = new TransactionBlock();
       const amountInMist = Math.floor(parseFloat(value) * 1_000_000_000);
+      console.log('Amount in Mist:', amountInMist);
 
       const coinType =
         tokenType === 'SUI'
           ? '0x2::sui::SUI'
           : '0xc0ba93a810adb498900c82bb6f7c16ca3046dfa7b6f364ec985595fdeb1ee9ad::suimon::SUIMON';
+      console.log('Coin Type:', coinType);
 
+      console.log('Fetching coins from wallet...');
       const coins = await suiClient.getCoins({
         owner: walletAddress,
         coinType: coinType,
       });
+      console.log('Coins Response:', coins);
 
       if (!coins.data || coins.data.length === 0) {
         throw new Error(`No ${tokenType} coins found in wallet`);
       }
 
       const coinObjectId = coins.data[0].coinObjectId;
+      console.log('Coin Object ID:', coinObjectId);
+      console.log('Coin Balance:', coins.data[0].balance);
+
       const [coin] = tx.splitCoins(tx.object(coinObjectId), [tx.pure(amountInMist)]);
+      console.log('Split Coins Transaction:', coin);
 
       tx.moveCall({
         target: `0xa4e6822e7212ab15edc1243ff1cf33bf45346b35c08acacf4c7bf5204fdc3353::game::create_game`,
         arguments: [coin, tx.pure(tokenType === 'SUIMON')],
       });
+      console.log('Move Call Prepared:', tx);
 
       // Log currentAccount to inspect available methods
-      console.log('currentAccount:', currentAccount);
+      console.log('Current Account:', currentAccount);
+      const availableMethods = Object.keys(currentAccount || {});
+      console.log('Available Methods on Current Account:', availableMethods);
 
-      // Check if signAndExecuteTransaction is supported
+      // Try different methods for signing and executing the transaction
+      let response;
       if (currentAccount && 'signAndExecuteTransaction' in currentAccount) {
-        // Sign and execute the transaction in one step
-        const response = await currentAccount.signAndExecuteTransaction({
+        console.log('Attempting to sign and execute transaction with signAndExecuteTransaction...');
+        response = await currentAccount.signAndExecuteTransaction({
           transaction: tx,
           requestType: 'WaitForLocalExecution',
           options: {
@@ -129,35 +135,69 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
             showObjectChanges: true,
           },
         });
-
-        if (!response.digest) {
-          throw new Error('Transaction failed: No transaction digest received');
-        }
-
-        setTransactionStage('executing');
-        setTransactionHash(response.digest);
-        socketService.emitWalletEvent('transactionExecuting', {
-          transactionHash: response.digest,
-          playerAddress: walletAddress,
-          tokenType,
-          amount: value,
-        });
-
-        setTransactionStage('confirming');
-        socketService.emitWalletEvent('transactionConfirming', {
-          transactionHash: response.digest,
-          playerAddress: walletAddress,
-        });
-
-        setTransactionStage('success');
-        socketService.emitWalletEvent('transactionSuccess', {
-          transactionHash: response.digest,
-          playerAddress: walletAddress,
-          action: 'stakeTransaction',
+      } else if (currentAccount && 'signAndExecuteTransactionBlock' in currentAccount) {
+        console.log('Attempting to sign and execute transaction with signAndExecuteTransactionBlock...');
+        response = await currentAccount.signAndExecuteTransactionBlock({
+          transactionBlock: tx,
+          requestType: 'WaitForLocalExecution',
+          options: {
+            showInput: true,
+            showEffects: true,
+            showEvents: true,
+            showObjectChanges: true,
+          },
         });
       } else {
-        throw new Error('Wallet does not support transaction signing for this operation');
+        console.log('No supported transaction signing method found. Attempting manual signing...');
+        // Fallback to manual signing if possible
+        if (currentAccount && 'sign' in currentAccount) {
+          console.log('Attempting to sign transaction with sign method...');
+          const signedTx = await currentAccount.sign({ transaction: tx });
+          console.log('Signed Transaction:', signedTx);
+
+          response = await suiClient.executeTransactionBlock({
+            transactionBlock: signedTx.transactionBlockBytes,
+            signature: signedTx.signature,
+            requestType: 'WaitForLocalExecution',
+            options: {
+              showInput: true,
+              showEffects: true,
+              showEvents: true,
+              showObjectChanges: true,
+            },
+          });
+        } else {
+          throw new Error('Wallet does not support any known transaction signing methods');
+        }
       }
+
+      console.log('Transaction Response:', response);
+
+      if (!response.digest) {
+        throw new Error('Transaction failed: No transaction digest received');
+      }
+
+      setTransactionStage('executing');
+      setTransactionHash(response.digest);
+      socketService.emitWalletEvent('transactionExecuting', {
+        transactionHash: response.digest,
+        playerAddress: walletAddress,
+        tokenType,
+        amount: value,
+      });
+
+      setTransactionStage('confirming');
+      socketService.emitWalletEvent('transactionConfirming', {
+        transactionHash: response.digest,
+        playerAddress: walletAddress,
+      });
+
+      setTransactionStage('success');
+      socketService.emitWalletEvent('transactionSuccess', {
+        transactionHash: response.digest,
+        playerAddress: walletAddress,
+        action: 'stakeTransaction',
+      });
     } catch (error: any) {
       console.error('Transaction preparation error:', error);
       console.error('Transaction error details:', {
@@ -167,6 +207,16 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
         tokenType,
         amount: value,
         stage: transactionStage,
+        walletAddress,
+        suiBalance,
+        suimonBalance,
+        coinsInWallet: await suiClient.getCoins({
+          owner: walletAddress,
+          coinType:
+            tokenType === 'SUI'
+              ? '0x2::sui::SUI'
+              : '0xc0ba93a810adb498900c82bb6f7c16ca3046dfa7b6f364ec985595fdeb1ee9ad::suimon::SUIMON',
+        }),
       });
 
       let errorMessage = error.message || 'Transaction failed. Please try again.';
@@ -188,6 +238,17 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
         playerAddress: walletAddress,
         walletStatus: isConnected ? 'connected' : 'disconnected',
         timestamp: new Date().toISOString(),
+        additionalDetails: {
+          suiBalance,
+          suimonBalance,
+          coinsInWallet: await suiClient.getCoins({
+            owner: walletAddress,
+            coinType:
+              tokenType === 'SUI'
+                ? '0x2::sui::SUI'
+                : '0xc0ba93a810adb498900c82bb6f7c16ca3046dfa7b6f364ec985595fdeb1ee9ad::suimon::SUIMON',
+          }),
+        },
       });
     }
   };
