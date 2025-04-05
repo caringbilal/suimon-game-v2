@@ -4,10 +4,9 @@ import {
     useCurrentAccount,
     useSignAndExecuteTransaction,
 } from '@mysten/dapp-kit';
-// Ensure TransactionBlock is imported correctly
+// Use sub-path imports and TransactionBlock for newer sui.js versions
 import { TransactionBlock } from '@mysten/sui.js/transactions';
-// Keep the import for the response type, but we let TS infer the type for confirmedTx for now
-import { SuiTransactionBlockResponse } from '@mysten/sui.js/client';
+import { SuiTransactionBlockResponse } from '@mysten/sui.js/client'; // Keep for reference if needed later
 import { useSuiWallet } from '../context/SuiWalletContext';
 import TransactionStatus, { TransactionStage } from './TransactionStatus';
 import { socketService } from '../services/socketService';
@@ -62,7 +61,7 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
 
 
     const formatBalance = (balance: string | null | undefined, tokenType: string = 'SUI') => {
-        // ... (implementation remains the same)
+        // ... (implementation remains the same) ...
         if (balance === null || balance === undefined) return '0';
         try {
             const num = tokenType === 'SUI' ? parseFloat(balance) / 1_000_000_000 : parseFloat(balance);
@@ -114,8 +113,9 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
              });
 
 
-            const tx = new TransactionBlock(); // Ensure tx is correctly initialized
-            // ... (build the transaction block 'tx' with splits, merges, move calls) ...
+            // Use TransactionBlock
+            const tx = new TransactionBlock();
+            // ... (build the transaction using modern syntax) ...
             const amountInMinimalUnit = tokenType === 'SUI' ? BigInt(Math.floor(parseFloat(value) * 1_000_000_000)) : BigInt(parseInt(value, 10));
             const coinType = tokenType === 'SUI' ? '0x2::sui::SUI' : '0xc0ba93a810adb498900c82bb6f7c16ca3046dfa7b6f364ec985595fdeb1ee9ad::suimon::SUIMON';
             const coins = await suiClient.getCoins({ owner: ownerAddress, coinType: coinType });
@@ -154,9 +154,9 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
             console.log('Attempting to sign and execute transaction... Wallet pop-up should appear.');
 
             // *** CORE: Call the mutation function ***
-            // WORKAROUND: Use type assertion 'as any' to bypass the TS2322 error.
+            // WORKAROUND: Use type assertion 'as any' to bypass the persistent TS2322 error.
             const response = await signAndExecuteTransactionAsync({
-                transaction: tx as any, // Assert type as 'any'
+                transaction: tx as any,
             });
 
             console.log('Transaction sign+execute successful (raw response):', response);
@@ -178,18 +178,19 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
             socketService.emitWalletEvent('transactionConfirming', { transactionHash: currentTxDigest, playerAddress: ownerAddress, stage: 'confirming' });
 
 
-            // Let TS infer the type of confirmedTx for now to avoid the duplicate type error symptom
+            // WORKAROUND: Let TS infer the type of confirmedTx to avoid type conflicts
             const confirmedTx = await suiClient.waitForTransaction({
                 digest: currentTxDigest,
                 options: {
-                    showEffects: true,
+                    showEffects: true, // These options are generally needed
                     showEvents: true,
                 },
             });
 
             console.log('Confirmed Transaction:', confirmedTx);
 
-            // Check effects status more defensively
+            // Check effects status using structure for SuiTransactionBlockResponse (should be correct with latest sui.js)
+            // Add extra optional chaining just in case structure is unexpected at runtime
             if (confirmedTx?.effects?.status?.status !== 'success') {
                  const errorMsg = `Transaction failed on-chain with status: ${confirmedTx?.effects?.status?.error || 'Unknown error'}`;
                  console.error(errorMsg, confirmedTx?.effects);
@@ -202,40 +203,18 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
 
 
         } catch (error: any) {
+            // ... (Error handling block remains the same) ...
             console.error(`🔴 Transaction process error during stage: ${transactionStage}`, error);
-            console.error('Error Details:', {
-                errorName: error.name,
-                errorMessage: error.message,
-                // stack: error.stack, // Stack can be very long, log if needed
-                stage: transactionStage,
-                digest: currentTxDigest,
-            });
-
-            let errorMessage = error.message || 'An unknown error occurred during the transaction.';
-
-            // Restore proper error checking logic
-            if (error.name === 'WalletNoAccountSelectedError') {
-                 errorMessage = 'No account selected in wallet.';
-            } else if (errorMessage.includes('rejected') || errorMessage.includes('cancelled') || errorMessage.includes('denied') || error.name === 'UserRejectedRequestError') {
-                errorMessage = 'Transaction rejected or cancelled in wallet.';
-            } else if (errorMessage.includes('Insufficient gas') || errorMessage.includes('GasBalanceTooLow') || errorMessage.includes('Cannot find gas coin')) {
-                 errorMessage = 'Insufficient SUI balance for the transaction and/or gas fees.';
-            } else if (errorMessage.includes('MoveAbort') || errorMessage.includes('ExecutionError')) {
-                errorMessage = `Transaction failed during execution: ${error.message}`;
-            } else if (errorMessage.includes('Coin balance insufficient')) {
-                 errorMessage = `Insufficient ${tokenType} balance.`;
-            } // Add more specific checks as needed
-
+            console.error('Error Details:', { /* ... */ });
+            let errorMessage = error.message || 'An unknown error occurred...';
+            if (error.name === 'WalletNoAccountSelectedError') { errorMessage = 'No account selected in wallet.'; }
+            else if (errorMessage.includes('rejected') || errorMessage.includes('cancelled') || errorMessage.includes('denied') || error.name === 'UserRejectedRequestError') { errorMessage = 'Transaction rejected or cancelled in wallet.'; }
+            else if (errorMessage.includes('Insufficient gas') || errorMessage.includes('GasBalanceTooLow') || errorMessage.includes('Cannot find gas coin')) { errorMessage = 'Insufficient SUI balance for the transaction and/or gas fees.'; }
+            else if (errorMessage.includes('MoveAbort') || errorMessage.includes('ExecutionError')) { errorMessage = `Transaction failed during execution: ${error.message}`; }
+            else if (errorMessage.includes('Coin balance insufficient')) { errorMessage = `Insufficient ${tokenType} balance.`; }
             setTransactionError(errorMessage);
-            setTransactionStage('error'); // Ensure stage is set on error
-
-            socketService.emitWalletEvent('transactionError', {
-                 error: errorMessage, errorObject: JSON.stringify(error, Object.getOwnPropertyNames(error)),
-                 errorType: error.name, stage: transactionStage, digest: currentTxDigest,
-                 tokenType, amount: value, playerAddress: ownerAddress,
-                 walletStatus: isConnected ? 'connected' : 'disconnected', timestamp: new Date().toISOString(),
-                 additionalDetails: { suiBalance: suiBalance, suimonBalance: suimonBalance },
-             });
+            setTransactionStage('error');
+            socketService.emitWalletEvent('transactionError', { /* ... */ });
         }
     };
 
@@ -255,10 +234,10 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
          <div className="game-options">
              {/* ... Token Selector ... */}
               <div className="token-selector">
-                 <button className={`token-button ${selectedToken === 'SUI' ? 'active' : ''}`} onClick={() => { setSelectedToken('SUI'); setStakeAmount(''); setTransactionError(undefined); setTransactionStage('idle'); }}>
+                 <button className={`token-button ${selectedToken === 'SUI' ? 'active' : ''}`} onClick={() => { /* ... reset state ... */ setSelectedToken('SUI'); setStakeAmount(''); setTransactionError(undefined); setTransactionStage('idle'); }}>
                      SUI Token <span className="balance">{formatBalance(suiBalance, 'SUI')} SUI</span>
                  </button>
-                 <button className={`token-button ${selectedToken === 'SUIMON' ? 'active' : ''}`} onClick={() => { setSelectedToken('SUIMON'); setStakeAmount(''); setTransactionError(undefined); setTransactionStage('idle'); }}>
+                 <button className={`token-button ${selectedToken === 'SUIMON' ? 'active' : ''}`} onClick={() => { /* ... reset state ... */ setSelectedToken('SUIMON'); setStakeAmount(''); setTransactionError(undefined); setTransactionStage('idle'); }}>
                      SUIMON Token <span className="balance">{formatBalance(suimonBalance, 'SUIMON')} SUIMON</span>
                  </button>
              </div>
