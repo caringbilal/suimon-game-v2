@@ -1,5 +1,7 @@
 import { TransactionBlock } from '@mysten/sui.js/transactions';
 import { SUI_CLOCK_OBJECT_ID } from '@mysten/sui.js/utils';
+import { useSuiClient } from '@mysten/dapp-kit';
+import { useSignAndExecuteTransaction } from '@mysten/dapp-kit';
 
 // Constants
 export const TEAM_WALLET_ADDRESS = '0x975109d5f34edee5556a431d3e4658bb7007389519c415d86c10c63a286ebf2b';
@@ -39,21 +41,23 @@ export interface GameRoomData {
 }
 
 /**
- * Prepares a transaction to create a new game with staked tokens
+ * Creates a new game with staked tokens
  * @param suiClient The Sui client instance
+ * @param signAndExecuteTransactionBlock The sign and execute transaction hook
  * @param walletAddress The user's wallet address
  * @param tokenType The type of token to stake ('SUI' or 'SUIMON')
  * @param amount The amount to stake
  * @param playerName The name of the player
- * @returns TransactionBlock to be executed by the caller
+ * @returns Transaction response
  */
-export async function prepareCreateStakedGame(
+export async function createStakedGame(
   suiClient: any,
+  signAndExecuteTransactionBlock: any,
   walletAddress: string,
   tokenType: 'SUI' | 'SUIMON',
   amount: string,
   playerName: string
-): Promise<TransactionBlock> {
+) {
   try {
     const tx = new TransactionBlock();
 
@@ -73,7 +77,7 @@ export async function prepareCreateStakedGame(
       throw new Error(`No ${tokenType} coins found in wallet`);
     }
 
-    // Use the first coin object
+    // Use the first coin object (you might want to select a specific coin if the user has multiple)
     const coinObjectId = coins.data[0].coinObjectId;
 
     // Split the coin to get the amount to stake
@@ -88,10 +92,66 @@ export async function prepareCreateStakedGame(
       ],
     });
 
-    return tx;
+    // Log transaction details before execution
+    console.log('Executing transaction with details:', {
+      tokenType,
+      amount,
+      walletAddress: walletAddress.substring(0, 8) + '...',
+      coinObjectId: coinObjectId.substring(0, 8) + '...',
+      amountInMist
+    });
+    
+    // Execute the transaction with proper wallet interaction settings
+    console.log('About to call signAndExecuteTransactionBlock with transaction:', {
+      txType: tx.blockData.transactions.length > 0 ? 'Has transactions' : 'Empty',
+      txSize: JSON.stringify(tx).length,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Add more detailed logging to track the transaction execution flow
+    console.log('About to execute transaction with wallet', {
+      walletAddress: walletAddress.substring(0, 8) + '...',
+      tokenType,
+      amount,
+      timestamp: new Date().toISOString()
+    });
+    
+    const response = await signAndExecuteTransactionBlock({
+      transactionBlock: tx,
+      options: {
+        showEffects: true,
+        showEvents: true,
+        showInput: true,
+        showObjectChanges: true,
+      },
+      // Force immediate execution to ensure wallet popup appears
+      requestType: 'WaitForLocalExecution',
+    });
+
+    // Verify that the response contains the necessary information
+    if (!response) {
+      throw new Error('Transaction was cancelled or failed');
+    }
+    
+    if (!response.digest) {
+      throw new Error('Transaction failed: No transaction digest received');
+    }
+    
+    // Check for transaction effects
+    if (!response.effects) {
+      throw new Error('Transaction failed: No effects received');
+    }
+    
+    // Check if transaction was successful
+    if (response.effects.status.status !== 'success') {
+      throw new Error(`Transaction failed: ${response.effects.status.error || 'Unknown error'}`);
+    }
+
+    return response;
   } catch (error: unknown) {
+    // Enhanced error logging with more context
     if (error instanceof Error) {
-      console.error('Error preparing staked game transaction:', error);
+      console.error('Error creating staked game:', error);
       console.error('Transaction context:', {
         stage: 'creation',
         tokenType,
@@ -101,28 +161,34 @@ export async function prepareCreateStakedGame(
         errorMessage: error.message,
         timestamp: new Date().toISOString()
       });
-      throw error;
+  
+      // Rethrow with more descriptive message if possible
+      if (error.message === 'Transaction was cancelled or failed') {
+        throw new Error('Wallet confirmation was cancelled or failed to appear. Please try again and check your wallet extension is working properly.');
+      }
     }
-    throw new Error('Unknown error preparing staked game transaction');
+    throw error;
   }
 }
 
 /**
- * Prepares a transaction to join an existing game with staked tokens
+ * Joins an existing game with staked tokens
  * @param suiClient The Sui client instance
+ * @param signAndExecuteTransactionBlock The sign and execute transaction hook
  * @param walletAddress The user's wallet address
  * @param gameObjectId The object ID of the game to join
  * @param tokenType The type of token to stake ('SUI' or 'SUIMON')
  * @param amount The amount to stake
- * @returns TransactionBlock to be executed by the caller
+ * @returns Transaction response
  */
-export async function prepareJoinStakedGame(
+export async function joinStakedGame(
   suiClient: any,
+  signAndExecuteTransactionBlock: any,
   walletAddress: string,
   gameObjectId: string,
   tokenType: 'SUI' | 'SUIMON',
   amount: string
-): Promise<TransactionBlock> {
+) {
   try {
     const tx = new TransactionBlock();
 
@@ -157,25 +223,60 @@ export async function prepareJoinStakedGame(
       ],
     });
 
-    return tx;
+    // Execute the transaction and wait for confirmation
+    const response = await signAndExecuteTransactionBlock({
+      transactionBlock: tx,
+      requestType: 'WaitForEffects',
+      options: {
+        showEffects: true,
+        showEvents: true,
+        showInput: true,
+      },
+      chain: 'sui:testnet'
+    });
+
+    // Verify that the response contains the necessary information
+    if (!response) {
+      throw new Error('Transaction was cancelled or failed');
+    }
+    
+    if (!response.digest) {
+      throw new Error('Transaction failed: No transaction digest received');
+    }
+    
+    // Check for transaction effects
+    if (!response.effects) {
+      throw new Error('Transaction failed: No effects received');
+    }
+    
+    // Check if transaction was successful
+    if (response.effects.status.status !== 'success') {
+      throw new Error(`Transaction failed: ${response.effects.status.error || 'Unknown error'}`);
+    }
+
+    return response;
   } catch (error) {
-    console.error('Error preparing join staked game transaction:', error);
+    console.error('Error joining staked game:', error);
     throw error;
   }
 }
 
 /**
- * Prepares a transaction to declare the winner of a game and distribute rewards
+ * Declares the winner of a game and distributes rewards
+ * @param suiClient The Sui client instance
+ * @param signAndExecuteTransactionBlock The sign and execute transaction hook
  * @param gameObjectId The object ID of the game
  * @param treasuryObjectId The object ID of the game treasury
  * @param winnerAddress The address of the winner
- * @returns TransactionBlock to be executed by the caller
+ * @returns Transaction response
  */
-export function prepareDeclareWinner(
+export async function declareWinner(
+  suiClient: any,
+  signAndExecuteTransactionBlock: any,
   gameObjectId: string,
   treasuryObjectId: string,
   winnerAddress: string
-): TransactionBlock {
+) {
   try {
     const tx = new TransactionBlock();
 
@@ -189,9 +290,40 @@ export function prepareDeclareWinner(
       ],
     });
 
-    return tx;
+    // Execute the transaction and wait for confirmation
+    const response = await signAndExecuteTransactionBlock({
+      transactionBlock: tx,
+      requestType: 'WaitForEffects',
+      options: {
+        showEffects: true,
+        showEvents: true,
+        showInput: true,
+      },
+      chain: 'sui:testnet'
+    });
+
+    // Verify that the response contains the necessary information
+    if (!response) {
+      throw new Error('Transaction was cancelled or failed');
+    }
+    
+    if (!response.digest) {
+      throw new Error('Transaction failed: No transaction digest received');
+    }
+    
+    // Check for transaction effects
+    if (!response.effects) {
+      throw new Error('Transaction failed: No effects received');
+    }
+    
+    // Check if transaction was successful
+    if (response.effects.status.status !== 'success') {
+      throw new Error(`Transaction failed: ${response.effects.status.error || 'Unknown error'}`);
+    }
+
+    return response;
   } catch (error) {
-    console.error('Error preparing declare winner transaction:', error);
+    console.error('Error declaring winner:', error);
     throw error;
   }
 }
