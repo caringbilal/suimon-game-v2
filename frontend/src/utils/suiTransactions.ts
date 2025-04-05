@@ -117,14 +117,13 @@ export async function createStakedGame(
     });
     
     const response = await signAndExecuteTransactionBlock({
-      transactionBlock: tx,
+      transaction: tx,  // Updated from transactionBlock to transaction
       options: {
         showEffects: true,
         showEvents: true,
         showInput: true,
         showObjectChanges: true,
       },
-      // Force immediate execution to ensure wallet popup appears
       requestType: 'WaitForLocalExecution',
     });
 
@@ -225,7 +224,7 @@ export async function joinStakedGame(
 
     // Execute the transaction and wait for confirmation
     const response = await signAndExecuteTransactionBlock({
-      transactionBlock: tx,
+      transaction: tx,  // Updated from transactionBlock to transaction
       requestType: 'WaitForEffects',
       options: {
         showEffects: true,
@@ -292,7 +291,7 @@ export async function declareWinner(
 
     // Execute the transaction and wait for confirmation
     const response = await signAndExecuteTransactionBlock({
-      transactionBlock: tx,
+      transaction: tx,  // Updated from transactionBlock to transaction
       requestType: 'WaitForEffects',
       options: {
         showEffects: true,
@@ -324,26 +323,6 @@ export async function declareWinner(
     return response;
   } catch (error) {
     console.error('Error declaring winner:', error);
-    throw error;
-  }
-}
-
-/**
- * Gets information about a game
- * @param suiClient The Sui client instance
- * @param gameObjectId The object ID of the game
- * @returns Game information
- */
-export async function getGameInfo(suiClient: any, gameObjectId: string) {
-  try {
-    const gameObject = await suiClient.getObject({
-      id: gameObjectId,
-      options: { showContent: true },
-    });
-
-    return gameObject;
-  } catch (error) {
-    console.error('Error getting game info:', error);
     throw error;
   }
 }
