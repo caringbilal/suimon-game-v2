@@ -1,7 +1,5 @@
 import { TransactionBlock } from '@mysten/sui.js/transactions';
 import { SUI_CLOCK_OBJECT_ID } from '@mysten/sui.js/utils';
-import { useSuiClient } from '@mysten/dapp-kit';
-import { useSignAndExecuteTransaction } from '@mysten/dapp-kit';
 
 // Constants
 export const TEAM_WALLET_ADDRESS = '0x975109d5f34edee5556a431d3e4658bb7007389519c415d86c10c63a286ebf2b';
@@ -41,23 +39,21 @@ export interface GameRoomData {
 }
 
 /**
- * Creates a new game with staked tokens
+ * Prepares a transaction to create a new game with staked tokens
  * @param suiClient The Sui client instance
- * @param signAndExecuteTransactionBlock The sign and execute transaction hook
  * @param walletAddress The user's wallet address
  * @param tokenType The type of token to stake ('SUI' or 'SUIMON')
  * @param amount The amount to stake
  * @param playerName The name of the player
- * @returns Transaction response
+ * @returns TransactionBlock to be executed by the caller
  */
-export async function createStakedGame(
+export async function prepareCreateStakedGame(
   suiClient: any,
-  signAndExecuteTransactionBlock: any,
   walletAddress: string,
   tokenType: 'SUI' | 'SUIMON',
   amount: string,
   playerName: string
-) {
+): Promise<TransactionBlock> {
   try {
     const tx = new TransactionBlock();
 
@@ -77,7 +73,7 @@ export async function createStakedGame(
       throw new Error(`No ${tokenType} coins found in wallet`);
     }
 
-    // Use the first coin object (you might want to select a specific coin if the user has multiple)
+    // Use the first coin object
     const coinObjectId = coins.data[0].coinObjectId;
 
     // Split the coin to get the amount to stake
@@ -92,36 +88,41 @@ export async function createStakedGame(
       ],
     });
 
-    // Execute the transaction
-    const response = await signAndExecuteTransactionBlock({
-      transactionBlock: tx,
-    });
-
-    return response;
-  } catch (error) {
-    console.error('Error creating staked game:', error);
-    throw error;
+    return tx;
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      console.error('Error preparing staked game transaction:', error);
+      console.error('Transaction context:', {
+        stage: 'creation',
+        tokenType,
+        amount,
+        walletAddress: walletAddress.substring(0, 8) + '...',
+        errorType: error.constructor.name,
+        errorMessage: error.message,
+        timestamp: new Date().toISOString()
+      });
+      throw error;
+    }
+    throw new Error('Unknown error preparing staked game transaction');
   }
 }
 
 /**
- * Joins an existing game with staked tokens
+ * Prepares a transaction to join an existing game with staked tokens
  * @param suiClient The Sui client instance
- * @param signAndExecuteTransactionBlock The sign and execute transaction hook
  * @param walletAddress The user's wallet address
  * @param gameObjectId The object ID of the game to join
  * @param tokenType The type of token to stake ('SUI' or 'SUIMON')
  * @param amount The amount to stake
- * @returns Transaction response
+ * @returns TransactionBlock to be executed by the caller
  */
-export async function joinStakedGame(
+export async function prepareJoinStakedGame(
   suiClient: any,
-  signAndExecuteTransactionBlock: any,
   walletAddress: string,
   gameObjectId: string,
   tokenType: 'SUI' | 'SUIMON',
   amount: string
-) {
+): Promise<TransactionBlock> {
   try {
     const tx = new TransactionBlock();
 
@@ -156,34 +157,25 @@ export async function joinStakedGame(
       ],
     });
 
-    // Execute the transaction
-    const response = await signAndExecuteTransactionBlock({
-      transactionBlock: tx,
-    });
-
-    return response;
+    return tx;
   } catch (error) {
-    console.error('Error joining staked game:', error);
+    console.error('Error preparing join staked game transaction:', error);
     throw error;
   }
 }
 
 /**
- * Declares the winner of a game and distributes rewards
- * @param suiClient The Sui client instance
- * @param signAndExecuteTransactionBlock The sign and execute transaction hook
+ * Prepares a transaction to declare the winner of a game and distribute rewards
  * @param gameObjectId The object ID of the game
  * @param treasuryObjectId The object ID of the game treasury
  * @param winnerAddress The address of the winner
- * @returns Transaction response
+ * @returns TransactionBlock to be executed by the caller
  */
-export async function declareWinner(
-  suiClient: any,
-  signAndExecuteTransactionBlock: any,
+export function prepareDeclareWinner(
   gameObjectId: string,
   treasuryObjectId: string,
   winnerAddress: string
-) {
+): TransactionBlock {
   try {
     const tx = new TransactionBlock();
 
@@ -197,14 +189,9 @@ export async function declareWinner(
       ],
     });
 
-    // Execute the transaction
-    const response = await signAndExecuteTransactionBlock({
-      transactionBlock: tx,
-    });
-
-    return response;
+    return tx;
   } catch (error) {
-    console.error('Error declaring winner:', error);
+    console.error('Error preparing declare winner transaction:', error);
     throw error;
   }
 }

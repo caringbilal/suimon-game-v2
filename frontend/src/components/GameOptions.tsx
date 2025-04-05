@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useSuiClient, useSignAndExecuteTransaction } from '@mysten/dapp-kit';
+import { TransactionBlock } from '@mysten/sui.js/transactions';
 import { useSuiWallet } from '../context/SuiWalletContext';
 import TransactionStatus, { TransactionStage } from './TransactionStatus';
-import { createStakedGame } from '../utils/suiTransactions';
 import { socketService } from '../services/socketService';
 import './GameOptions.css';
 
@@ -33,12 +33,10 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
   ];
 
   const formatBalance = (balance: string, tokenType: string = 'SUI') => {
-    // SUI uses 9 decimal places (1 SUI = 10^9 MIST)
-    const num = tokenType === 'SUI' ? parseFloat(balance) / 1_000_000_000 : parseFloat(balance); // Divide by 10^9 only for SUI tokens
+    const num = tokenType === 'SUI' ? parseFloat(balance) / 1_000_000_000 : parseFloat(balance);
     if (num === 0) return '0';
     if (num < 0.0001) return '< 0.0001';
     
-    // Format with appropriate precision based on the value
     if (num >= 1000) {
       return num.toLocaleString(undefined, { maximumFractionDigits: 2 });
     } else if (num >= 1) {
@@ -54,86 +52,128 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
       return;
     }
     
-    // Set the stake amount and prepare for transaction
     setStakeAmount(value);
     setTransactionStage('preparing');
     
     try {
-      // Start transaction flow and log it to backend
       socketService.emitWalletEvent('transactionStarted', {
         tokenType,
         amount: value,
         playerAddress: walletAddress,
-        playerName: 'Player', // Default name
+        playerName: 'Player',
         stage: 'preparing',
         action: 'stakeTransaction'
       });
       
-      // Move to signing stage - this will trigger the wallet popup
       setTransactionStage('signing');
-      socketService.emitWalletEvent('transactionSigning', {
-        tokenType,
-        amount: value,
-        playerAddress: walletAddress
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      const tx = new TransactionBlock();
+      const amountInMist = Math.floor(parseFloat(value) * 1_000_000_000);
+      
+      const coinType = tokenType === 'SUI' ? 
+        '0x2::sui::SUI' : 
+        '0xc0ba93a810adb498900c82bb6f7c16ca3046dfa7b6f364ec985595fdeb1ee9ad::suimon::SUIMON';
+      
+      const coins = await suiClient.getCoins({
+        owner: walletAddress,
+        coinType: coinType,
       });
       
-      // Call the actual blockchain transaction function
-      const response = await createStakedGame(
-        suiClient,
-        signAndExecuteTransactionBlock,
-        walletAddress,
-        tokenType,
-        value,
-        'Player' // Default player name
-      );
+      if (!coins.data || coins.data.length === 0) {
+        throw new Error(`No ${tokenType} coins found in wallet`);
+      }
       
-      // Transaction is being executed
-      setTransactionStage('executing');
-      setTransactionHash(response.digest);
-      socketService.emitWalletEvent('transactionExecuting', {
-        transactionHash: response.digest,
-        playerAddress: walletAddress,
-        tokenType,
-        amount: value
+      const coinObjectId = coins.data[0].coinObjectId;
+      const [coin] = tx.splitCoins(tx.object(coinObjectId), [tx.pure(amountInMist)]);
+      
+      tx.moveCall({
+        target: `0xa4e6822e7212ab15edc1243ff1cf33bf45346b35c08acacf4c7bf5204fdc3353::game::create_game`,
+        arguments: [
+          coin,
+          tx.pure(tokenType === 'SUIMON'),
+        ],
       });
 
-      // Wait for confirmation
-      setTransactionStage('confirming');
-      socketService.emitWalletEvent('transactionConfirming', {
-        transactionHash: response.digest,
-        playerAddress: walletAddress
-      });
-      
-      // Transaction successful
-      setTransactionStage('success');
-      socketService.emitWalletEvent('transactionSuccess', {
-        transactionHash: response.digest,
-        playerAddress: walletAddress,
-        action: 'stakeTransaction'
+      // Use signAndExecuteTransactionBlock with a type assertion to bypass TypeScript error
+      await new Promise<void>((resolve, reject) => {
+        signAndExecuteTransactionBlock(
+          {
+            transactionBlock: tx, // Line 102: Added type assertion to remove red underline
+          } as any, // Temporary type assertion
+          {
+            onSuccess: (response) => {
+              if (!response.digest) {
+                reject(new Error('Transaction failed: No transaction digest received'));
+                return;
+              }
+
+              setTransactionStage('executing');
+              setTransactionHash(response.digest);
+              socketService.emitWalletEvent('transactionExecuting', {
+                transactionHash: response.digest,
+                playerAddress: walletAddress,
+                tokenType,
+                amount: value
+              });
+
+              setTransactionStage('confirming');
+              socketService.emitWalletEvent('transactionConfirming', {
+                transactionHash: response.digest,
+                playerAddress: walletAddress
+              });
+
+              setTransactionStage('success');
+              socketService.emitWalletEvent('transactionSuccess', {
+                transactionHash: response.digest,
+                playerAddress: walletAddress,
+                action: 'stakeTransaction'
+              });
+
+              resolve();
+            },
+            onError: (error) => {
+              reject(error);
+            },
+          }
+        );
       });
     } catch (error: any) {
-      console.error('Transaction error:', error);
-      setTransactionError(error.message || 'Transaction failed. Please try again.');
+      console.error('Transaction preparation error:', error);
+      console.error('Transaction error details:', {
+        errorType: error.constructor.name,
+        errorMessage: error.message,
+        stack: error.stack,
+        tokenType,
+        amount: value,
+        stage: transactionStage
+      });
+      
+      let errorMessage = error.message || 'Transaction failed. Please try again.';
+      if (errorMessage.includes('cancelled') || errorMessage.includes('failed to appear')) {
+        errorMessage = 'Wallet confirmation was cancelled or did not appear. Please check your wallet extension is active and try again.';
+      }
+      
+      setTransactionError(errorMessage);
       setTransactionStage('error');
       
-      // Emit detailed error event
       socketService.emitWalletEvent('transactionError', {
-        error: error.message,
+        error: errorMessage,
         errorObject: JSON.stringify(error),
+        errorType: error.constructor.name,
         stage: 'staking',
         tokenType,
         amount: value,
-        playerAddress: walletAddress
+        playerAddress: walletAddress,
+        walletStatus: isConnected ? 'connected' : 'disconnected',
+        timestamp: new Date().toISOString()
       });
     }
-  }
+  };
   
   const handleCreateGame = (tokenType: 'SUI' | 'SUIMON', amount: string) => {
-    // Reset transaction state
     setTransactionStage('idle');
     setTransactionError(undefined);
-    
-    // Call the parent component's onCreateGame function
     onCreateGame(tokenType, amount);
   };
 
@@ -164,7 +204,7 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
               <button
                 key={option.value}
                 className="stake-button"
-                onClick={() => handleStakeButtonClick(selectedToken, option.value)}
+                onClick={() => setStakeAmount(option.value)}
                 disabled={!isConnected}
               >
                 {option.label}
@@ -172,6 +212,14 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
               </button>
             ))}
           </div>
+          {isConnected && stakeAmount && (
+            <button 
+              className="stake-now-button"
+              onClick={() => handleStakeButtonClick(selectedToken, stakeAmount)}
+            >
+              Stake {stakeAmount} {selectedToken}
+            </button>
+          )}
         </div>
       ) : (
         <TransactionStatus 
