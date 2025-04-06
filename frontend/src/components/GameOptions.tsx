@@ -3,7 +3,6 @@ import {
     useSuiClient,
     useCurrentAccount,
     useSignAndExecuteTransaction,
-    // Import specific types needed if inference fails later, but start without
 } from '@mysten/dapp-kit';
 // Use sub-path imports and TransactionBlock for newer sui.js versions
 import { TransactionBlock } from '@mysten/sui.js/transactions';
@@ -42,6 +41,7 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
     const { walletAddress, suiBalance, suimonBalance, isConnected } = useSuiWallet();
     const suiClient = useSuiClient();
     const currentAccount = useCurrentAccount() as CustomWalletAccount | null;
+    // Use isPending from the hook
     const { mutateAsync: signAndExecuteTransactionAsync, isPending } = useSignAndExecuteTransaction();
     const [selectedToken, setSelectedToken] = useState<TokenType>('SUI');
     const [transactionStage, setTransactionStage] = useState<TransactionStage>('idle');
@@ -100,9 +100,8 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
         setTransactionError(undefined);
         setTransactionHash(undefined);
         let currentTxDigest: string | undefined = undefined;
-        // Initialize tx definitely here
         const tx = new TransactionBlock();
-        console.log('[handleStakeButtonClick] TransactionBlock initialized.'); // LOG 5 (Moved earlier)
+        console.log('[handleStakeButtonClick] TransactionBlock initialized.'); // LOG 5
 
         try {
             console.log(`[handleStakeButtonClick] Owner Address: ${ownerAddress}`); // LOG 2
@@ -170,7 +169,7 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
             console.log('[handleStakeButtonClick] Wallet pop-up should appear now.');
             console.log('------------------------------------------------------------------');
 
-            // Use 'as any' workaround for persistent type error
+            // Use 'as any' workaround for persistent transaction type error
             const response = await signAndExecuteTransactionAsync({
                 transaction: tx as any,
             });
@@ -194,7 +193,7 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
             setTransactionStage('confirming');
             socketService.emitWalletEvent('transactionConfirming', { /* ... */ });
 
-            // Let TS infer the type of confirmedTx
+            // FIX: Let TS infer the type to avoid conflicting definitions error
             const confirmedTx = await suiClient.waitForTransaction({
                 digest: currentTxDigest,
                 options: {
@@ -206,6 +205,7 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
             console.log('[handleStakeButtonClick] Transaction Confirmation Response:', confirmedTx); // LOG 27
 
             // Check effects status using optional chaining defensively
+            // This path should be correct for recent @mysten/sui.js versions
             if (confirmedTx?.effects?.status?.status !== 'success') {
                  const errorMsg = `Transaction failed on-chain with status: ${confirmedTx?.effects?.status?.error || 'Unknown error'}`;
                  console.error('[handleStakeButtonClick] On-chain execution failed:', errorMsg, confirmedTx?.effects); // LOG 28
@@ -217,6 +217,7 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
             socketService.emitWalletEvent('transactionSuccess', { /* ... */ });
 
         } catch (error: any) {
+            // ... (Error handling block remains the same) ...
             console.error(`[handleStakeButtonClick] 🔴🔴🔴 ERROR Caught during stage: ${transactionStage} 🔴🔴🔴`); // LOG 30
             console.error('[handleStakeButtonClick] Error Name:', error.name); // LOG 31
             console.error('[handleStakeButtonClick] Error Message:', error.message); // LOG 32
@@ -225,13 +226,12 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
 
             let errorMessage = error.message || 'An unknown error occurred during the transaction.';
             // ... (Refined error message handling) ...
-             if (error.name === 'WalletNoAccountSelectedError') { errorMessage = 'No account selected in wallet.'; }
+            if (error.name === 'WalletNoAccountSelectedError') { errorMessage = 'No account selected in wallet.'; }
             else if (errorMessage.includes('rejected') || errorMessage.includes('cancelled') || errorMessage.includes('denied') || error.name === 'UserRejectedRequestError') { errorMessage = 'Transaction rejected or cancelled in wallet.'; }
             else if (errorMessage.includes('Insufficient gas') || errorMessage.includes('GasBalanceTooLow') || errorMessage.includes('Cannot find gas coin')) { errorMessage = 'Insufficient SUI balance for the transaction and/or gas fees.'; }
             else if (errorMessage.includes('MoveAbort') || errorMessage.includes('ExecutionError')) { errorMessage = `Transaction failed during Move execution: ${error.message}`; }
             else if (errorMessage.includes('Coin balance insufficient')) { errorMessage = `Insufficient ${tokenType} balance.`; }
             else if (errorMessage.includes('toJSON is not a function')) { errorMessage = 'Internal Error: Incompatibility between transaction object and signing function. Check package versions.'; }
-
 
             console.error('[handleStakeButtonClick] Setting error state:', errorMessage); // LOG 35
             setTransactionError(errorMessage);
@@ -271,7 +271,6 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
            {!isPending && transactionStage === 'idle' ? ( // Hide options grid while signing
                 <div className="stake-options">
                     <h3>Select Stake Amount</h3>
-                     {/* *** RESTORED BUTTON MAPPING LOGIC *** */}
                     <div className="options-grid">
                         {(selectedToken === 'SUI' ? suiOptions : suimonOptions).map((option: OptionType) => (
                             <button
