@@ -150,6 +150,76 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
 
       const txBytes = await tx.build();
       const txBase64 = bytesToBase64(txBytes);
+      
+      // Log detailed wallet information
+      console.log('Wallet Information:', {
+        chains: currentAccount?.chains,
+        features: currentAccount?.features,
+        address: currentAccount?.address,
+        type: currentAccount?.type,
+        isConnected,
+        walletAddress,
+        timestamp: new Date().toISOString()
+      });
+
+      // Log detailed transaction preparation
+      console.log('Transaction Preparation:', {
+        tokenType,
+        amount,
+        minimalAmount,
+        contractAddress,
+        moduleName,
+        methodName,
+        txSize: txBytes.length,
+        hasGas: tx.blockData.gasConfig !== undefined,
+        sender: currentAccount?.address,
+        timestamp: new Date().toISOString()
+      });
+
+      // Log transaction block details
+      console.log('Transaction Block Details:', {
+        type: tx.blockData.transactions.length > 0 ? 'Has transactions' : 'Empty',
+        transactionCount: tx.blockData.transactions.length,
+        gasConfig: tx.blockData.gasConfig,
+        sender: currentAccount?.address,
+        inputs: tx.blockData.inputs,
+        timestamp: new Date().toISOString()
+      });
+
+      // Log transaction execution attempt
+      console.log('Executing Transaction:', {
+        base64Length: txBase64.length,
+        wallet: currentAccount?.type,
+        sender: currentAccount?.address,
+        timestamp: new Date().toISOString()
+      });
+
+      // Emit detailed event before transaction
+      socketService.emitWalletEvent('transactionAttempt', {
+        tokenType,
+        amount,
+        walletAddress: currentAccount?.address,
+        walletType: currentAccount?.type,
+        isConnected,
+        hasCurrentAccount: !!currentAccount,
+        walletDetails: {
+          chains: currentAccount?.chains,
+          features: currentAccount?.features,
+          address: currentAccount?.address,
+          type: currentAccount?.type,
+          accountInfo: currentAccount?.accounts?.[0],
+          connectionStatus: isConnected
+        },
+        transactionDetails: {
+          contractAddress: contractAddress,
+          moduleName: moduleName,
+          methodName: methodName,
+          txSize: txBytes.length,
+          hasGas: tx.blockData.gasConfig !== undefined,
+          transactionCount: tx.blockData.transactions.length
+        },
+        timestamp: new Date().toISOString()
+      });
 
       const response = await signAndExecuteTransactionAsync({
         transaction: txBase64,

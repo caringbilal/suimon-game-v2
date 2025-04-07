@@ -41,13 +41,16 @@ export const SuiWalletProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (dappKitConnected && currentWallet) {
       const address = currentWallet.accounts[0]?.address;
       setWalletAddress(address || null);
-      socketService.emitWalletEvent('walletConnected', { 
-        address, 
-        wallet: currentWallet.name,
+      socketService.emitWalletEvent('walletConnected', {
+        address,
+        wallet: currentWallet?.name ?? 'unknown',
         timestamp: new Date().toISOString(),
-        connectionType: currentWallet.name,
-        accountDetails: currentWallet.accounts
+        connectionType: currentWallet?.name ?? 'unknown',
+        accountDetails: currentWallet?.accounts ?? [],
+        network: 'unknown',
+        chainId: (currentWallet as any)?.chainId ?? 'unknown',
       });
+      
     } else {
       setWalletAddress(null);
       setSuiBalance('0');
