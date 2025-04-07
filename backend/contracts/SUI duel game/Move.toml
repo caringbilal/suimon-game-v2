@@ -6,7 +6,7 @@ version = "0.0.1"
 Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "framework/testnet" }
 
 [addresses]
-suimon_game = "0x0"  # <-- matches your 'module suimon_game::game {...}' declaration
+suimon_game = "0xba02ab9d67f2058424da11e1f063bff31683fd229a8408d87c018dea223ce4f0"  # <-- matches your 'module suimon_game::game {...}' declaration
 
 # (optional, but unused here)
 # suimon_sui_duel = "0x0"

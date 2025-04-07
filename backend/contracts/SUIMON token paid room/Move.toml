@@ -6,5 +6,5 @@ version = "0.0.1"
 Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "framework/testnet" }
 
 [addresses]
-suimon_suimon_staking = "0x0"
+suimon_suimon_staking = "0xd87d922719e3267aa78c9537b98a53af03086576afcb23ea7a035b39260cb747"
 suimon_game = "0x0"
