@@ -1,9 +1,9 @@
 [package]
-name = "suimon_game"
+name = "suimon_sui_duel"
 version = "0.0.1"
 
 [dependencies]
 Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "framework/testnet" }
 
 [addresses]
-suimon_game = "0x0"
+suimon_sui_duel = "0x0"    # <-- this will be replaced with your deployed package address after publish

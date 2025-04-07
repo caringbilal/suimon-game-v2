@@ -1,0 +1,12 @@
+[package]
+name = "suimon_suimon_staking"
+version = "0.0.1"
+
+[dependencies]
+Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "framework/testnet" }
+
+[addresses]
+suimon_suimon_staking = "0x0"
+
+# add SUIMON coin address dependency for SUIMON token struct
+suimon_token_pkg = "0xc0ba93a810adb498900c82bb6f7c16ca3046dfa7b6f364ec985595fdeb1ee9ad0xc0ba93a810adb498900c82bb6f7c16ca3046dfa7b6f364ec985595fdeb1ee9ad::suimon::SUIMON"
