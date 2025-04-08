@@ -6,6 +6,11 @@ import { Wallet } from '@mysten/wallet-standard';
 import './WalletConnection.css';
 import './WalletDialog.css';
 
+// Import wallet logos
+import SuiLogo from '../assets/ui/Sui_Logo 128px.png';
+import PhantomLogo from '../assets/ui/Phantom_Logo 128px.png';
+import SuietLogo from '../assets/ui/Suiet_Logo 128px.png';
+
 const WalletConnection: React.FC = () => {
   const { walletAddress, suiBalance, suimonBalance, isConnected, isLoading, error, updateBalances } = useSuiWallet();
   const [connectionError, setConnectionError] = useState<string | null>(null);
@@ -35,10 +40,9 @@ const WalletConnection: React.FC = () => {
     const { mutate: disconnect } = useDisconnectWallet();
     const availableWallets: Wallet[] = useWallets();
     const wallets = [
-      { name: 'Sui Wallet', icon: '🔷' },
-      { name: 'Phantom', icon: '👻' },
-      { name: 'Cosmostation', icon: '🌌' },
-      { name: 'Suiet', icon: '🌊' },
+      { name: 'Sui Wallet', icon: SuiLogo },
+      { name: 'Phantom', icon: PhantomLogo },
+      { name: 'Suiet', icon: SuietLogo },
     ];
 
     console.log('Available Wallets:', availableWallets);
@@ -123,7 +127,15 @@ const WalletConnection: React.FC = () => {
                     data-wallet={wallet.name}
                     onClick={() => handleConnect(wallet.name)}
                   >
-                    <span className="wallet-icon">{wallet.icon}</span>
+                    <span className="wallet-icon">
+                      <img 
+                        src={wallet.icon} 
+                        alt={`${wallet.name} logo`} 
+                        width="28" 
+                        height="28" 
+                        style={{ display: 'block' }}
+                      />
+                    </span>
                     <span className="wallet-name">{wallet.name}</span>
                   </button>
                 ))}

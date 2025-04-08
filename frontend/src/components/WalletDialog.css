@@ -92,13 +92,26 @@
   }
   
   .wallet-icon {
-    width: 32px;
-    height: 32px;
-    margin-right: 12px;
+    width: 42px;
+    height: 42px;
+    margin-right: 15px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 24px; /* Ensure emojis are sized correctly */
+    background-color: white;
+    border-radius: 10px;
+    padding: 2px;
+    font-size: 30px; /* For emoji fallbacks - increased by 30% */
+    background-color: transparent; /* Ensure no background color interferes */
+  }
+  
+  .wallet-icon img {
+    width: 36px;
+    height: 36px;
+    object-fit: contain;
+    display: block; /* Ensure image is displayed as block */
+    margin: 0 auto; /* Center the image */
+    border-radius: 5px; /* Add slight rounding to icons */
   }
   
   /* Wallet-specific styles */
@@ -112,10 +125,7 @@
     color: white !important;
   }
   
-  .wallet-option[data-wallet="Cosmostation"] {
-    background: #05d2dd !important;
-    color: white !important;
-  }
+  /* Removed Cosmostation wallet style as requested */
   
   .wallet-option[data-wallet="Suiet"] {
     background: #4f87ff !important;
