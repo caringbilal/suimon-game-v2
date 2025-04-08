@@ -1,12 +1,16 @@
 import React, { useState } from 'react';
 import { useSuiClient, useCurrentAccount, useSignAndExecuteTransaction } from '@mysten/dapp-kit';
 import { TransactionBlock } from '@mysten/sui.js/transactions';
+import { SuiClient, getFullnodeUrl } from '@mysten/sui.js/client';
 import { useSuiWallet } from '../context/SuiWalletContext';
 import TransactionStatus, { TransactionStage } from './TransactionStatus';
 import { socketService } from '../services/socketService';
 import './GameOptions.css';
 
-// ------------ contract addresses
+// Explicit client for offline tx build
+const suiRpcClient = new SuiClient({ url: getFullnodeUrl('testnet') });  // or 'mainnet'
+
+// contract addresses
 const SUI_GAME_CONTRACT = '0xba02ab9d67f2058424da11e1f063bff31683fd229a8408d87c018dea223ce4f0';
 const SUIMON_GAME_CONTRACT = '0xd87d922719e3267aa78c9537b98a53af03086576afcb23ea7a035b39260cb747';
 
@@ -36,7 +40,6 @@ const suimonOptions = [
   { label: '100,000 SUIMON', value: '100000' },
 ];
 
-// ---------- helper: bytes to base64
 function bytesToBase64(bytes: Uint8Array): string {
   let binary = '';
   for (let i = 0; i < bytes.length; i++) {
@@ -47,9 +50,8 @@ function bytesToBase64(bytes: Uint8Array): string {
 
 const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
   const { walletAddress, suiBalance, suimonBalance, isConnected } = useSuiWallet();
-  const suiClient = useSuiClient();
+  const suiClient = useSuiClient(); // still used elsewhere e.g. waitForTransaction
   const currentAccount = useCurrentAccount() as CustomWalletAccount | null;
-
   const { mutateAsync: signAndExecuteTransactionAsync, isPending } = useSignAndExecuteTransaction();
 
   const [selectedToken, setSelectedToken] = useState<TokenType>('SUI');
@@ -148,82 +150,14 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
 
       setTransactionStage('signing');
 
-      const txBytes = await tx.build();
+      // Important: set sender!
+      tx.setSender(ownerAddress);
+
+      const txBytes = await tx.build({ client: suiRpcClient });  // pass explicit provider here!
       const txBase64 = bytesToBase64(txBytes);
-      
-      // Log detailed wallet information
-      console.log('Wallet Information:', {
-        chains: currentAccount?.chains,
-        features: currentAccount?.features,
-        address: currentAccount?.address,
-        type: currentAccount?.type,
-        isConnected,
-        walletAddress,
-        timestamp: new Date().toISOString()
-      });
-
-      // Log detailed transaction preparation
-      console.log('Transaction Preparation:', {
-        tokenType,
-        amount,
-        minimalAmount,
-        contractAddress,
-        moduleName,
-        methodName,
-        txSize: txBytes.length,
-        hasGas: tx.blockData.gasConfig !== undefined,
-        sender: currentAccount?.address,
-        timestamp: new Date().toISOString()
-      });
-
-      // Log transaction block details
-      console.log('Transaction Block Details:', {
-        type: tx.blockData.transactions.length > 0 ? 'Has transactions' : 'Empty',
-        transactionCount: tx.blockData.transactions.length,
-        gasConfig: tx.blockData.gasConfig,
-        sender: currentAccount?.address,
-        inputs: tx.blockData.inputs,
-        timestamp: new Date().toISOString()
-      });
-
-      // Log transaction execution attempt
-      console.log('Executing Transaction:', {
-        base64Length: txBase64.length,
-        wallet: currentAccount?.type,
-        sender: currentAccount?.address,
-        timestamp: new Date().toISOString()
-      });
-
-      // Emit detailed event before transaction
-      socketService.emitWalletEvent('transactionAttempt', {
-        tokenType,
-        amount,
-        walletAddress: currentAccount?.address,
-        walletType: currentAccount?.type,
-        isConnected,
-        hasCurrentAccount: !!currentAccount,
-        walletDetails: {
-          chains: currentAccount?.chains,
-          features: currentAccount?.features,
-          address: currentAccount?.address,
-          type: currentAccount?.type,
-          accountInfo: currentAccount?.accounts?.[0],
-          connectionStatus: isConnected
-        },
-        transactionDetails: {
-          contractAddress: contractAddress,
-          moduleName: moduleName,
-          methodName: methodName,
-          txSize: txBytes.length,
-          hasGas: tx.blockData.gasConfig !== undefined,
-          transactionCount: tx.blockData.transactions.length
-        },
-        timestamp: new Date().toISOString()
-      });
 
       const response = await signAndExecuteTransactionAsync({
         transaction: txBase64,
-        // NO options here! It's unsupported in this SDK version
       });
 
       if (!response?.digest) throw new Error('No digest returned');
@@ -285,7 +219,6 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
 
   return (
     <div className="game-options">
-
       <div className="token-selector">
         <button
           className={`token-button ${selectedToken === 'SUI' ? 'active' : ''}`}
