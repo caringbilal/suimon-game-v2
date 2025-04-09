@@ -191,8 +191,13 @@
 }
 
 .opponent-hand {
+  display: flex;
+  flex-wrap: wrap;
   justify-content: center;
   gap: 10px;
+  width: 100%;
+  max-width: 1000px;
+  margin: 0 auto;
 }
 
 .opponent-hand .card:nth-child(1) { transform: rotate(15deg) translateX(-80px) translateY(-5px) scale(0.85); }

@@ -24,6 +24,7 @@ import DisconnectWalletButton from './components/DisconnectWalletButton';
 import LogoutButton from './components/LogoutButton';
 import ProfileModal from './components/ProfileModal';
 import DraggableBox from './components/DraggableBox';
+import GlassCard from './components/GlassCard';
 
 const SERVER_URL = process.env.REACT_APP_API_URL || 'http://localhost:3002';
 
@@ -82,6 +83,7 @@ const LoginScreen: React.FC = () => {
       <ParticlesBackground className={`particles ${isFadingOut ? 'particles-fade-out' : ''}`} />
       <div className="login-card">
         <h1>Suimon Card Game</h1>
+
         <p>Sign in to play and track your progress</p>
         <div className="google-login-wrapper">
           <GoogleLogin

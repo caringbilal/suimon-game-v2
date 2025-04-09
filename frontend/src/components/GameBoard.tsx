@@ -1,7 +1,7 @@
 // GameBoard.tsx
 import React, { useState, useEffect, Dispatch, SetStateAction, useCallback } from 'react';
 import { GameState, CardType } from '../types/game';
-import Card from '@components/Card';
+import GlassCard from './GlassCard';
 import cardBackMonster from '../assets/monsters/card-back.png';
 import GameEndDialog from '@components/GameEndDialog';
 import DraggableStatBox from '@components/DraggableStatBox';
@@ -500,13 +500,16 @@ export default React.memo<GameBoardProps>(
             {opponentData.hand.map((card: CardType, index: number) => {
               const updatedCard = validateCardImageUrl(card, true);
               return (
-                <Card
-                  key={`opponent-card-${index}`}
-                  card={updatedCard}
-                  onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-                    e.currentTarget.src = cardBackMonster;
-                  }}
-                />
+                <GlassCard imageUrl={updatedCard.imageUrl}>
+                  <div style={{ padding: '10px', color: 'white', textAlign: 'center' }}>
+                    <h4 style={{ margin: '5px 0' }}>{updatedCard.name}</h4>
+                    <div style={{ display: 'flex', justifyContent: 'space-around', fontSize: '0.8rem' }}>
+                      <div>ATK: {updatedCard.attack}</div>
+                      <div>DEF: {updatedCard.defense}</div>
+                      <div>HP: {updatedCard.hp}</div>
+                    </div>
+                  </div>
+                </GlassCard>
               );
             })}
           </div>
@@ -520,19 +523,16 @@ export default React.memo<GameBoardProps>(
                 name: card.name || card.id,
               };
               return (
-                <Card
-                  key={card.id}
-                  card={updatedCard}
-                  isAttacking={attackingCard === card.id}
-                  isDefending={defendingCard === card.id}
-                  onAnimationEnd={() => {
-                    if (attackingCard === card.id) setAttackingCard(null);
-                    if (defendingCard === card.id) setDefendingCard(null);
-                  }}
-                  onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-                    e.currentTarget.src = cardBackMonster;
-                  }}
-                />
+                <GlassCard imageUrl={updatedCard.imageUrl}>
+                  <div style={{ padding: '10px', color: 'white', textAlign: 'center' }}>
+                    <h4 style={{ margin: '5px 0' }}>{updatedCard.name}</h4>
+                    <div style={{ display: 'flex', justifyContent: 'space-around', fontSize: '0.8rem' }}>
+                      <div>ATK: {updatedCard.attack}</div>
+                      <div>DEF: {updatedCard.defense}</div>
+                      <div>HP: {updatedCard.hp}</div>
+                    </div>
+                  </div>
+                </GlassCard>
               );
             })}
           </div>
@@ -540,19 +540,16 @@ export default React.memo<GameBoardProps>(
             {gameState.battlefield[playerRole].map((card: CardType) => {
               const updatedCard = validateCardImageUrl(card, false);
               return (
-                <Card
-                  key={card.id}
-                  card={updatedCard}
-                  isAttacking={attackingCard === card.id}
-                  isDefending={defendingCard === card.id}
-                  onAnimationEnd={() => {
-                    if (attackingCard === card.id) setAttackingCard(null);
-                    if (defendingCard === card.id) setDefendingCard(null);
-                  }}
-                  onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-                    e.currentTarget.src = cardBackMonster;
-                  }}
-                />
+                <GlassCard imageUrl={updatedCard.imageUrl}>
+                  <div style={{ padding: '10px', color: 'white', textAlign: 'center' }}>
+                    <h4 style={{ margin: '5px 0' }}>{updatedCard.name}</h4>
+                    <div style={{ display: 'flex', justifyContent: 'space-around', fontSize: '0.8rem' }}>
+                      <div>ATK: {updatedCard.attack}</div>
+                      <div>DEF: {updatedCard.defense}</div>
+                      <div>HP: {updatedCard.hp}</div>
+                    </div>
+                  </div>
+                </GlassCard>
               );
             })}
           </div>
@@ -583,23 +580,16 @@ export default React.memo<GameBoardProps>(
               myData.hand.map((card: CardType) => {
                 const updatedCard = validateCardImageUrl(card, false);
                 return (
-                  <Card
-                    key={card.id}
-                    card={updatedCard}
-                    onClick={() => {
-                      const isPlayerTurn =
-                        playerRole === 'player1'
-                          ? gameState.currentTurn === 'player1' && gameState.gameStatus === 'playing'
-                          : gameState.currentTurn === 'player2' && gameState.gameStatus === 'playing';
-                      if (isPlayerTurn && gameState.battlefield[playerRole].length === 0) {
-                        onCardPlay(card);
-                        addCombatLogEntry(`${playerInfo.name} plays ${card.name}!`, 'play');
-                      }
-                    }}
-                    onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-                      e.currentTarget.src = cardBackMonster;
-                    }}
-                  />
+                <GlassCard imageUrl={updatedCard.imageUrl}>
+                  <div style={{ padding: '10px', color: 'white', textAlign: 'center' }}>
+                    <h4 style={{ margin: '5px 0' }}>{updatedCard.name}</h4>
+                    <div style={{ display: 'flex', justifyContent: 'space-around', fontSize: '0.8rem' }}>
+                      <div>ATK: {updatedCard.attack}</div>
+                      <div>DEF: {updatedCard.defense}</div>
+                      <div>HP: {updatedCard.hp}</div>
+                    </div>
+                  </div>
+                </GlassCard>
                 );
               })
             ) : (
