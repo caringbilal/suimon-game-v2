@@ -18,7 +18,7 @@ const DraggableCombatStats: React.FC<DraggableCombatStatsProps> = ({
   combatLog,
   playerCardsCount,
   opponentCardsCount,
-  initialPosition = { x: -240, y: 600 }
+  initialPosition = { x: 20, y: 600 }
 }) => {
   const [position, setPosition] = useState(initialPosition);
   const [isDragging, setIsDragging] = useState(false);

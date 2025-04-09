@@ -138,6 +138,7 @@
 
 .turn-indicator.active {
   background: rgba(46, 204, 113, 0.5);
+  color: white;
   animation: pulse 2s infinite;
   border-radius: 20px;
 }

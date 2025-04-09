@@ -22,7 +22,7 @@ const DraggableStatBox: React.FC<DraggableStatBoxProps> = ({
   maxEnergy,
   avatar,
   kills,
-  initialPosition = { x: -240, y: type === 'player' ? 100 : 340 },
+  initialPosition = { x: 20, y: type === 'player' ? 100 : 340 },
   isCurrentTurn = false
 }) => {
   const [position, setPosition] = useState(initialPosition);
