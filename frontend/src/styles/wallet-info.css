@@ -1,16 +1,16 @@
 .wallet-info {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  background: rgba(0, 0, 0, 0.8);
-  padding: 15px;
-  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.95);
+  border: 2px solid #4CAF50;
+  border-radius: 12px;
+  padding: 20px;
   color: white;
-  z-index: 1000;
+  min-width: 300px;
+  box-shadow: 0 0 15px rgba(0, 255, 0, 0.3);
+  backdrop-filter: blur(8px);
+  animation: glow 2s ease-in-out infinite alternate;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
 .token-balances {

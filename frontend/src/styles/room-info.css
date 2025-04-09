@@ -1,7 +1,4 @@
 .room-info-box {
-  position: fixed;
-  top: 20px;
-  right: 20px;
   background: rgba(0, 0, 0, 0.95);
   border: 2px solid #4CAF50;
   border-radius: 12px;

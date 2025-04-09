@@ -23,6 +23,7 @@ import WalletConnection from './components/WalletConnection';
 import DisconnectWalletButton from './components/DisconnectWalletButton';
 import LogoutButton from './components/LogoutButton';
 import ProfileModal from './components/ProfileModal';
+import DraggableBox from './components/DraggableBox';
 
 const SERVER_URL = process.env.REACT_APP_API_URL || 'http://localhost:3002';
 
@@ -557,23 +558,48 @@ function App() {
         <ProfileModal isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} />
       )}
 
-      {roomId && (
-        <RoomInfoBox
-          roomId={roomId}
-          playerRole={playerRole}
-          gameState={gameState}
-          onCopyRoomId={() => {
-            navigator.clipboard.writeText(roomId);
-            setDialogMessage('Room ID copied to clipboard!');
-            setTimeout(() => setDialogMessage(null), 2000);
-          }}
-          onSignOut={() => {
-            socket.emit('logout', user?.sub);
-            signOut();
-            setOpponentInfo(null);
-          }}
-        />
-      )}
+      <>
+        <DraggableBox title={`Room ID: ${roomId || 'No Room Created'}`} initialPosition={{ x: 1473, y: 337 }}>
+          <div className="room-info-content">
+            <p>
+              Your Role:
+              <span className={playerRole === 'player1' ? 'host' : ''}>
+                {playerRole === 'player1' ? 'Host (Player 1)' : playerRole === 'player2' ? 'Player 2' : 'N/A'}
+                <span className={`status-dot ${playerRole === 'player1' ? 'host' : ''}`}></span>
+              </span>
+            </p>
+            <p>
+              Game Status:
+              <span className={gameState?.gameStatus || ''}>
+                {gameState?.gameStatus ? gameState.gameStatus.charAt(0).toUpperCase() + gameState.gameStatus.slice(1) : 'No Game'}
+                <span className={`status-dot ${gameState?.gameStatus || ''}`}></span>
+              </span>
+            </p>
+            {roomId ? (
+              <button
+                className="copy-room-id"
+                onClick={() => {
+                  navigator.clipboard.writeText(roomId);
+                  setDialogMessage('Room ID copied to clipboard!');
+                  setTimeout(() => setDialogMessage(null), 2000);
+                }}
+              >
+                Copy Room ID
+              </button>
+            ) : (
+              <p>No Room ID yet</p>
+            )}
+            <LogoutButton
+              className="room-info-logout"
+              onSignOut={() => {
+                socket.emit('logout', user?.sub);
+                signOut();
+                setOpponentInfo(null);
+              }}
+            />
+          </div>
+        </DraggableBox>
+      </>
       {dialogMessage && <div className="dialog-message">{dialogMessage}</div>}
       <LeaderboardTable players={players} games={games} />
     </div>

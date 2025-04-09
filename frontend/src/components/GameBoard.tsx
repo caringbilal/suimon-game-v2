@@ -13,6 +13,7 @@ import LogoutButton from './LogoutButton';
 import defaultAvatar from '../assets/ui/default-avatar.png';
 import { useSuiWallet } from '../context/SuiWalletContext';
 import WalletConnection from './WalletConnection';
+import DraggableBox from './DraggableBox';
 
 interface GameEndDialogProps {
   winner: 'player' | 'opponent';
@@ -393,11 +394,11 @@ export default React.memo<GameBoardProps>(
 
     return (
       <div className="game-board">
-        <div className="wallet-info">
+        <DraggableBox title="Wallet Info" initialPosition={{ x: 1100, y: 100 }}>
           <WalletConnection />
-        </div>
-        <div className="room-info-box">
-          <h3>Room ID: {roomId}</h3>
+        </DraggableBox>
+
+        <DraggableBox title={`Room ID: ${roomId}`} initialPosition={{ x: 1100, y: 374 }}>
           <div className="room-info-content">
             <p>
               Your Role:
@@ -425,7 +426,7 @@ export default React.memo<GameBoardProps>(
               <LogoutButton className="room-info-logout" onSignOut={onSignOut} />
             )}
           </div>
-        </div>
+        </DraggableBox>
         {gameState.gameStatus === 'finished' && (
           <GameEndDialog
             winner={playerRole === 'player1' ? (gameState.player1.energy <= 0 ? 'opponent' : 'player') : (gameState.player2.energy <= 0 ? 'opponent' : 'player')}
