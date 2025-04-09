@@ -22,6 +22,7 @@ import GameOptions from './components/GameOptions';
 import WalletConnection from './components/WalletConnection';
 import DisconnectWalletButton from './components/DisconnectWalletButton';
 import LogoutButton from './components/LogoutButton';
+import ProfileModal from './components/ProfileModal';
 
 const SERVER_URL = process.env.REACT_APP_API_URL || 'http://localhost:3002';
 
@@ -99,6 +100,7 @@ const LoginScreen: React.FC = () => {
 };
 
 function App() {
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const MAX_ENERGY = 700;
   const { user, isAuthenticated, isLoading: authLoading, signOut } = useAuth();
   const { isConnected, suiBalance, suimonBalance } = useSuiWallet();
@@ -460,6 +462,21 @@ function App() {
       <div className="user-profile">
         <img src={playerInfo.avatar} alt="Profile" className="profile-image" crossOrigin="anonymous" referrerPolicy="no-referrer" />
         <h2>Welcome, {user?.name || 'Player'}!</h2>
+        <button
+          onClick={() => setIsProfileOpen(true)}
+          style={{
+            marginTop: '10px',
+            padding: '8px 16px',
+            backgroundColor: '#4CAF50',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontSize: '14px',
+          }}
+        >
+          View Profile
+        </button>
         {isAuthenticated && (
           <LogoutButton 
             className="room-info-logout" 
@@ -536,6 +553,10 @@ function App() {
           </div>
         </div>
       </div>
+      {isProfileOpen && (
+        <ProfileModal isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} />
+      )}
+
       {roomId && (
         <RoomInfoBox
           roomId={roomId}
