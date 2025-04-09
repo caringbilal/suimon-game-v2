@@ -589,14 +589,7 @@ function App() {
             ) : (
               <p>No Room ID yet</p>
             )}
-            <LogoutButton
-              className="room-info-logout"
-              onSignOut={() => {
-                socket.emit('logout', user?.sub);
-                signOut();
-                setOpponentInfo(null);
-              }}
-            />
+            
           </div>
         </DraggableBox>
       </>
