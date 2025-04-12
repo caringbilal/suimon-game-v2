@@ -1,0 +1,9 @@
+[package]
+name = "suimon_token"
+version = "0.1.0"
+
+[dependencies]
+# No explicit dependencies needed, as Sui framework is included automatically
+
+[addresses]
+suimon_token = "0x0"
