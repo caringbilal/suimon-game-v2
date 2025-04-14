@@ -85,6 +85,18 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
       return;
     }
 
+    // Check if user has sufficient balance
+    const userBalance = tokenType === 'SUI' ? suiBalance : suimonBalance;
+    const requiredAmount = tokenType === 'SUI' 
+      ? parseFloat(amount) * 1_000_000_000 // Convert to MIST
+      : parseFloat(amount);
+
+    if (parseFloat(userBalance) < requiredAmount) {
+      setTransactionError(`Insufficient ${tokenType} balance`);
+      setTransactionStage('error');
+      return;
+    }
+
     setStakeAmount(amount);
     setTransactionStage('preparing');
     setTransactionError(undefined);
@@ -92,6 +104,10 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
 
     const ownerAddress = currentAccount.address;
     const tx = new TransactionBlock();
+
+    // Determine which contract to use based on token type
+    const contractAddress = tokenType === 'SUI' ? SUI_GAME_CONTRACT : SUIMON_GAME_CONTRACT;
+    const moduleName = tokenType === 'SUI' ? SUI_MODULE_NAME : SUIMON_MODULE_NAME;
 
     try {
       socketService.emitWalletEvent('transactionStarted', {

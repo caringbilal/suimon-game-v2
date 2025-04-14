@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useCurrentWallet, useSuiClient } from '@mysten/dapp-kit';
 import { socketService } from '../services/socketService';
+import { getSuimonBalance, SUIMON_COIN_TYPE } from '../utils/suimonTokenUtils';
 
 interface SuiWalletContextType {
   walletAddress: string | null;
@@ -14,16 +15,15 @@ interface SuiWalletContextType {
 
 const SuiWalletContext = createContext<SuiWalletContextType | null>(null);
 
-// Use the correct SUIMON coin type (update this with the actual coin type if different)
-const SUIMON_COIN_TYPE = '0xc0ba93a810adb498900c82bb6f7c16ca3046dfa7b6f364ec985595fdeb1ee9ad::suimon::SUIMON';
+// SUIMON coin type is imported from suimonTokenUtils
 
 export const SuiWalletProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { currentWallet, isConnected: dappKitConnected } = useCurrentWallet();
   const suiClient = useSuiClient();
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
-  const [suiBalance, setSuiBalance] = useState('0');
-  const [suimonBalance, setSuimonBalance] = useState('0');
-  const [isLoading, setIsLoading] = useState(false);
+  const [suiBalance, setSuiBalance] = useState<string>('0');
+  const [suimonBalance, setSuimonBalance] = useState<string>('0');
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState<boolean>(false);
 
@@ -63,46 +63,44 @@ export const SuiWalletProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }, [dappKitConnected, currentWallet]);
 
   const updateBalances = async () => {
-    if (!walletAddress || !suiClient) return;
+    if (!walletAddress || !suiClient) {
+      console.error('SUI Client or wallet address not initialized');
+      setError('Wallet client or address not initialized');
+      return;
+    }
 
     setIsLoading(true);
     setError(null);
 
     try {
       // Get SUI balance
-      const suiBalanceResponse = await suiClient.getBalance({
+      if (!suiClient.getCoins) {
+        throw new Error('SUI Client methods not available');
+      }
+      const coins = await suiClient.getCoins({
         owner: walletAddress,
+        coinType: '0x2::sui::SUI'
       });
-      setSuiBalance(suiBalanceResponse.totalBalance.toString());
-      socketService.emitWalletEvent('balanceUpdate', {
-        type: 'SUI',
-        balance: suiBalanceResponse.totalBalance.toString(),
-        address: walletAddress,
-        timestamp: new Date().toISOString()
-      });
+      const coinsData = coins?.data;
+      const totalBalance = coinsData && Array.isArray(coinsData) && coinsData.length > 0
+        ? coinsData.reduce((acc: bigint, coin: {balance: string}) => acc + BigInt(coin.balance), BigInt(0))
+        : BigInt(0);
+      setSuiBalance(totalBalance.toString());
 
-      // Get SUIMON token balance
-      const suimonBalanceResponse = await suiClient.getBalance({
+      // Get SUIMON balance
+      const suimonCoins = await suiClient.getCoins({
         owner: walletAddress,
-        coinType: SUIMON_COIN_TYPE,
+        coinType: SUIMON_COIN_TYPE
       });
-      setSuimonBalance(suimonBalanceResponse.totalBalance.toString());
-      socketService.emitWalletEvent('balanceUpdate', {
-        type: 'SUIMON',
-        balance: suimonBalanceResponse.totalBalance.toString(),
-        address: walletAddress,
-        timestamp: new Date().toISOString()
-      });
-    } catch (err) {
-      const errorMessage = 'Failed to fetch balances';
-      setError(errorMessage);
-      socketService.emitWalletEvent('error', {
-        type: 'BALANCE_FETCH_ERROR',
-        message: errorMessage,
-        error: err,
-        walletAddress,
-        timestamp: new Date().toISOString()
-      });
+      const suimonCoinsData = suimonCoins?.data;
+      const totalSuimonBalance = suimonCoinsData && Array.isArray(suimonCoinsData) && suimonCoinsData.length > 0
+        ? suimonCoinsData.reduce((acc: bigint, coin: {balance: string}) => acc + BigInt(coin.balance), BigInt(0))
+        : BigInt(0);
+      setSuimonBalance(totalSuimonBalance.toString());
+
+    } catch (error) {
+      console.error('Error updating balances:', error);
+      setError('Failed to update balances');
     } finally {
       setIsLoading(false);
     }
