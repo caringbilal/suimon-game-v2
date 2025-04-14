@@ -9,9 +9,6 @@ module suimon_token::suimon_token {
     /// One-time witness type for initializing the coin
     struct SUIMON_TOKEN has drop {}
 
-    /// Marker struct for the SUIMON token type
-    struct SUIMON has drop {}
-
     /// Capability to manage the SUIMON token (e.g., for admin operations)
     struct AdminCap has key, store {
         id: UID,
@@ -19,7 +16,7 @@ module suimon_token::suimon_token {
 
     /// One-time initialization function to set up the coin
     fun init(witness: SUIMON_TOKEN, ctx: &mut TxContext) {
-        let (treasury_cap, metadata) = coin::create_currency<SUIMON>(
+        let (treasury_cap, metadata) = coin::create_currency<SUIMON_TOKEN>(
             witness,
             9, // Decimals (standard for most tokens)
             b"SUIMON", // Symbol
@@ -41,7 +38,7 @@ module suimon_token::suimon_token {
 
     /// Entry function to mint 1_000_000_000 SUIMON tokens to the caller
     public entry fun mint_initial_supply(
-        treasury_cap: &mut TreasuryCap<SUIMON>,
+        treasury_cap: &mut TreasuryCap<SUIMON_TOKEN>,
         ctx: &mut TxContext
     ) {
         let coin = coin::mint(treasury_cap, 1_000_000_000_000_000_000, ctx); // 1B tokens with 9 decimals
@@ -51,7 +48,7 @@ module suimon_token::suimon_token {
     /// Entry function to mint additional tokens (admin-only, requires AdminCap)
     public entry fun mint_tokens(
         _admin_cap: &AdminCap,
-        treasury_cap: &mut TreasuryCap<SUIMON>,
+        treasury_cap: &mut TreasuryCap<SUIMON_TOKEN>,
         amount: u64,
         recipient: address,
         ctx: &mut TxContext
@@ -63,8 +60,8 @@ module suimon_token::suimon_token {
     /// Burn tokens to reduce supply (optional, admin-only)
     public entry fun burn(
         _admin_cap: &AdminCap,
-        treasury_cap: &mut TreasuryCap<SUIMON>,
-        coin: Coin<SUIMON>
+        treasury_cap: &mut TreasuryCap<SUIMON_TOKEN>,
+        coin: Coin<SUIMON_TOKEN>
     ) {
         coin::burn(treasury_cap, coin);
     }
