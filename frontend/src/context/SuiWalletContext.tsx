@@ -96,7 +96,9 @@ export const SuiWalletProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const totalSuimonBalance = suimonCoinsData && Array.isArray(suimonCoinsData) && suimonCoinsData.length > 0
         ? suimonCoinsData.reduce((acc: bigint, coin: {balance: string}) => acc + BigInt(coin.balance), BigInt(0))
         : BigInt(0);
-      setSuimonBalance(totalSuimonBalance.toString());
+      // Format SUIMON balance with 9 decimal places
+      const formattedSuimonBalance = (Number(totalSuimonBalance) / 1_000_000_000).toString();
+      setSuimonBalance(formattedSuimonBalance);
 
     } catch (error) {
       console.error('Error updating balances:', error);
