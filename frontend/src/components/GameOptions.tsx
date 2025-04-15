@@ -35,9 +35,9 @@ const suiOptions = [
 ];
 
 const suimonOptions = [
-  { label: '1,000 SUIMON', value: '1000' },
-  { label: '10,000 SUIMON', value: '10000' },
+  { label: '50,000 SUIMON', value: '50000' },
   { label: '100,000 SUIMON', value: '100000' },
+  { label: '200,000 SUIMON', value: '200000' },
 ];
 
 function bytesToBase64(bytes: Uint8Array): string {
@@ -50,7 +50,7 @@ function bytesToBase64(bytes: Uint8Array): string {
 
 const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
   const { walletAddress, suiBalance, suimonBalance, isConnected } = useSuiWallet();
-  const suiClient = useSuiClient(); // still used elsewhere e.g. waitForTransaction
+  const suiClient = useSuiClient(); // used for blockchain interactions like waitForTransactionBlock
   const currentAccount = useCurrentAccount() as CustomWalletAccount | null;
   const { mutateAsync: signAndExecuteTransactionAsync, isPending } = useSignAndExecuteTransaction();
 
@@ -112,6 +112,24 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
     try {
       socketService.emitWalletEvent('transactionStarted', {
         tokenType, amount, walletAddress: ownerAddress, timestamp: new Date().toISOString(),
+      });
+      
+      // Log staking details for both players (in this case, only player 1 is staking)
+      socketService.emitWalletEvent('stakingDetails', {
+        gameId: `game_${Date.now()}`,
+        tokenType,
+        player1: {
+          address: ownerAddress,
+          amount: amount
+        },
+        player2: {
+          address: 'pending', // Will be filled when player 2 joins
+          amount: amount // Same stake amount for player 2
+        },
+        totalStaked: (parseFloat(amount) * 2).toString(), // Total staked by both players
+        winnerPotential: (parseFloat(amount) * 2 * 0.9).toFixed(6), // 90% of total
+        marketingFee: (parseFloat(amount) * 2 * 0.1).toFixed(6), // 10% of total
+        timestamp: new Date().toISOString()
       });
 
       const minimalAmount = tokenType === 'SUI'
@@ -186,12 +204,13 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
 
       setTransactionStage('confirming');
 
-      const confirmedTx = await suiClient.waitForTransaction({
+      const confirmedTx = await suiClient.waitForTransaction({ //i added waitforTransaction rather than waitForTransactionBlock and it fixed the red underline here
         digest,
         options: {
           showEffects: true,
           showEvents: true,
         },
+        timeout: 30000, // Add timeout in milliseconds
       });
 
       const status = confirmedTx?.effects?.status?.status;
@@ -201,7 +220,24 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
       }
 
       setTransactionStage('success');
-      socketService.emitWalletEvent('transactionSuccess', { digest, tokenType, amount });
+      socketService.emitWalletEvent('transactionSuccess', { 
+        digest, 
+        tokenType, 
+        amount,
+        gameId: `game_${Date.now()}`,
+        walletAddress: ownerAddress
+      });
+      
+      // Add transaction to player history
+      socketService.emitWalletEvent('addTransaction', {
+        playerId: ownerAddress,
+        gameId: `game_${Date.now()}`,
+        transactionType: 'stake',
+        tokenType,
+        amount,
+        transactionHash: digest,
+        timestamp: new Date().toISOString()
+      });
 
     } catch (error: any) {
       console.error('Stake error:', error);

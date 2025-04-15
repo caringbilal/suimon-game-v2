@@ -34,13 +34,55 @@ export default (io) => {
     console.log('Player ID:', socket.handshake.query.playerId);
 
     // Handle wallet events
-    socket.on('walletEvent', (event) => {
+    socket.on('walletEvent', async (event) => {
         console.log('=== Wallet Event ===');
         console.log('Event Type:', event.type);
         console.log('Event Data:', event.data);
         console.log('Timestamp:', event.timestamp);
         console.log('Socket ID:', socket.id);
         console.log('==================');
+        
+        // Import reward handlers dynamically to avoid circular dependencies
+        const { logStakingDetails, processBattleOutcome, processRewardDistribution, updatePlayerWalletInfo, addTransactionToHistory } = await import('./rewardHandler.js');
+        
+        // Process reward system related events
+        try {
+            switch(event.type) {
+                case 'stakingDetails':
+                    await logStakingDetails(event.data);
+                    break;
+                    
+                case 'battleOutcome':
+                    await processBattleOutcome(event.data);
+                    break;
+                    
+                case 'rewardDistributionSuccess':
+                    await processRewardDistribution(event.data);
+                    // Add transaction to player history
+                    await addTransactionToHistory(event.data.winnerAddress, {
+                        gameId: event.data.gameId,
+                        transactionType: 'reward',
+                        tokenType: event.data.tokenType,
+                        amount: event.data.winnerAmount,
+                        transactionHash: event.data.transactionHash
+                    });
+                    break;
+                    
+                case 'updatePlayerInfo':
+                    // Update winner stats
+                    if (event.data.winner) {
+                        await updatePlayerWalletInfo(
+                            event.data.winner.address,
+                            event.data.winner.tokenType,
+                            event.data.winner.reward,
+                            'reward'
+                        );
+                    }
+                    break;
+            }
+        } catch (error) {
+            console.error(`Error processing ${event.type} event:`, error);
+        }
     });
 
     // Handle room creation
