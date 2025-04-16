@@ -1,5 +1,6 @@
 import { TransactionBlock } from '@mysten/sui.js/transactions';
 import { SuiClient } from '@mysten/sui.js/client';
+import { useSuiClient } from '@mysten/dapp-kit';
 import { socketService } from '../services/socketService';
 
 // Contract addresses (using the existing ones from GameOptions.tsx)
@@ -104,7 +105,7 @@ export function logStakingDetails(
  */
 export async function connectBattleOutcome(
   gameResult: GameResultData,
-  suiClient: SuiClient
+  suiClient: ReturnType<typeof useSuiClient>
 ): Promise<string> {
   try {
     // Log the battle outcome
@@ -188,7 +189,7 @@ export function createRewardDistributionTransaction(
  * @param totalStaked The total amount staked
  */
 export async function distributeRewards(
-  suiClient: SuiClient,
+  suiClient: ReturnType<typeof useSuiClient>,
   signAndExecuteTransactionBlock: any,
   gameObjectId: string,
   winnerAddress: string,
@@ -238,7 +239,7 @@ export async function distributeRewards(
     const digest = response.digest;
 
     // Wait for transaction confirmation
-    const confirmedTx = await suiClient.waitForTransactionBlock({
+    const confirmedTx = await suiClient.waitForTransaction({
       digest,
       options: {
         showEffects: true,

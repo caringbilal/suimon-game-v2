@@ -6,6 +6,9 @@ export const SUIMON_TOKEN_ADDRESS = '0xaae614cf7c6801a95b25d32bd3b9006d4b9f9841e
 export const SUIMON_TOKEN_MODULE = 'suimon_token';
 export const SUIMON_COIN_TYPE = `${SUIMON_TOKEN_ADDRESS}::${SUIMON_TOKEN_MODULE}::SUIMON_TOKEN`;
 
+// This should match the coin type in suiTransactions.ts
+// export const SUIMON_COIN_TYPE = '0xc0ba93a810adb498900c82bb6f7c16ca3046dfa7b6f364ec985595fdeb1ee9ad::suimon::SUIMON';
+
 /**
  * Get SUIMON token balance for a wallet address
  */

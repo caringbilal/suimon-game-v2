@@ -5,6 +5,7 @@ import { SuiClient, getFullnodeUrl } from '@mysten/sui.js/client';
 import { useSuiWallet } from '../context/SuiWalletContext';
 import TransactionStatus, { TransactionStage } from './TransactionStatus';
 import { socketService } from '../services/socketService';
+import { SUIMON_COIN_TYPE } from '../utils/suimonTokenUtils';
 import './GameOptions.css';
 
 // Explicit client for offline tx build
@@ -138,7 +139,7 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
 
       const coinType = tokenType === 'SUI'
         ? '0x2::sui::SUI'
-        : '0xc0ba93a810adb498900c82bb6f7c16ca3046dfa7b6f364ec985595fdeb1ee9ad::suimon::SUIMON';
+        : SUIMON_COIN_TYPE;
 
       const coins = await suiClient.getCoins({ owner: ownerAddress, coinType });
       if (!coins.data || coins.data.length === 0) throw new Error(`No ${tokenType} coins`);
