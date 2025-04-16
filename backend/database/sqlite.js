@@ -145,6 +145,12 @@ const initializeDatabase = async () => {
           winnerName TEXT,
           status TEXT,
           hands TEXT,
+          stakingDetails TEXT,
+          gameType TEXT DEFAULT 'free',
+          tokenType TEXT,
+          tokenAmount TEXT,
+          battleOutcome TEXT,
+          rewardDistribution TEXT,
           FOREIGN KEY (player1Id) REFERENCES players(playerId),
           FOREIGN KEY (player2Id) REFERENCES players(playerId)
         )`,
@@ -233,6 +239,21 @@ const initializeDatabase = async () => {
             reject(err);
           } else {
             console.log('tokenAmount column added or already exists');
+            resolve();
+          }
+        }
+      );
+    });
+    
+    // Add stakingDetails column if it doesn't exist
+    await new Promise((resolve, reject) => {
+      db.run(
+        `ALTER TABLE games ADD COLUMN stakingDetails TEXT`,
+        (err) => {
+          if (err && !err.message.includes('duplicate column name')) {
+            reject(err);
+          } else {
+            console.log('stakingDetails column added or already exists');
             resolve();
           }
         }

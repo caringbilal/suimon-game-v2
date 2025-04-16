@@ -19,6 +19,7 @@ export const initializeGamesTable = () => {
         gameType TEXT DEFAULT 'free',
         tokenType TEXT,
         tokenAmount TEXT,
+        stakingDetails TEXT,
         FOREIGN KEY(player1Id) REFERENCES players(playerId),
         FOREIGN KEY(player2Id) REFERENCES players(playerId)
       )`,

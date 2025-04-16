@@ -89,8 +89,8 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
     // Check if user has sufficient balance
     const userBalance = tokenType === 'SUI' ? suiBalance : suimonBalance;
     const requiredAmount = tokenType === 'SUI' 
-      ? parseFloat(amount) * 1_000_000_000 // Convert to MIST
-      : parseFloat(amount);
+      ? parseFloat(amount) * 1_000_000_000 // Convert SUI to MIST
+      : parseFloat(amount) * 1_000_000_000; // Convert SUIMON to smallest unit (9 decimals)
 
     if (parseFloat(userBalance) < requiredAmount) {
       setTransactionError(`Insufficient ${tokenType} balance`);
@@ -135,7 +135,7 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
 
       const minimalAmount = tokenType === 'SUI'
         ? Math.floor(parseFloat(amount) * 1_000_000_000).toString()
-        : parseInt(amount, 10).toString();
+        : Math.floor(parseFloat(amount) * 1_000_000_000).toString(); // Convert SUIMON amount to the smallest unit (9 decimals)
 
       const coinType = tokenType === 'SUI'
         ? '0x2::sui::SUI'
@@ -159,7 +159,10 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
         if (available.length > 1) {
           tx.mergeCoins(c0, available.slice(1).map(c => tx.object(c.coinObjectId)));
         }
-        paymentCoin = tx.splitCoins(c0, [tx.pure.u64(minimalAmount)]);
+        // Convert the string to a BigInt first to ensure it's handled correctly
+        const suimonAmount = BigInt(minimalAmount);
+        // Then use pure.u64 for SUIMON tokens
+        paymentCoin = tx.splitCoins(c0, [tx.pure.u64(suimonAmount)]);
       }
 
       const contractAddress = tokenType === 'SUI' ? SUI_GAME_CONTRACT : SUIMON_GAME_CONTRACT;
@@ -308,7 +311,7 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
                 onClick={() => setStakeAmount(option.value)}
                 disabled={!isConnected}>
                 {option.label}
-                {selectedToken === 'SUI' && <span className="gas-fee">+ Gas Fee</span>}
+                <span className="gas-fee">+ Gas Fee</span>
               </button>
             ))}
           </div>

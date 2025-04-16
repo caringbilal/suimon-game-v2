@@ -49,9 +49,15 @@ export function createSuimonStakeTransaction(
 ): TransactionBlock {
   const txb = new TransactionBlock();
   
+  // Get all SUIMON coins owned by the sender
+  const suimonCoins = txb.moveCall({
+    target: `0x2::coin::select`,
+    arguments: [txb.object(SUIMON_COIN_TYPE)]
+  });
+
   // Split SUIMON coin if needed and stake it in the game room
-  const [stakeCoin] = txb.splitCoins(txb.gas, [amount]);
-  
+  const [stakeCoin] = txb.splitCoins(suimonCoins, [amount]);
+
   // Call the stake function in the game contract
   txb.moveCall({
     target: `${SUIMON_TOKEN_ADDRESS}::${SUIMON_TOKEN_MODULE}::stake_tokens`,
