@@ -10,6 +10,7 @@ interface TransactionStatusProps {
   tokenType: 'SUI' | 'SUIMON';
   amount: string;
   transactionHash?: string;
+  roomId?: string;
 }
 
 const TransactionStatus: React.FC<TransactionStatusProps> = ({ 
@@ -18,7 +19,8 @@ const TransactionStatus: React.FC<TransactionStatusProps> = ({
   onCreateGame,
   tokenType,
   amount,
-  transactionHash
+  transactionHash,
+  roomId
  }) => {
   const getStatusText = () => {
     switch (stage) {
@@ -44,12 +46,19 @@ const TransactionStatus: React.FC<TransactionStatusProps> = ({
   return (
     <div className={`transaction-status ${stage}`}>
       {stage === 'success' as TransactionStage ? (
-        <button 
-          className="create-paid-game-button"
-          onClick={() => onCreateGame(tokenType, amount)}
-        >
-          Create Paid On-Chain Game
-        </button>
+        <div className="success-container">
+          {roomId && (
+            <div className="room-id">
+              Room ID: {roomId}
+            </div>
+          )}
+          <button 
+            className="create-paid-game-button"
+            onClick={() => onCreateGame(tokenType, amount)}
+          >
+            Create Paid On-Chain Game
+          </button>
+        </div>
       ) : (
         <div className="status-container">
           <div className="status-text">{getStatusText()}</div>

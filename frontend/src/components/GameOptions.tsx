@@ -9,9 +9,9 @@ import { SUIMON_COIN_TYPE } from '../utils/suimonTokenUtils';
 import './GameOptions.css';
 
 // Explicit client for offline tx build
-const suiRpcClient = new SuiClient({ url: getFullnodeUrl('testnet') });  // or 'mainnet'
+const suiRpcClient = new SuiClient({ url: getFullnodeUrl('testnet') }); // or 'mainnet'
 
-// contract addresses
+// Contract addresses
 const SUI_GAME_CONTRACT = '0xba02ab9d67f2058424da11e1f063bff31683fd229a8408d87c018dea223ce4f0';
 const SUIMON_GAME_CONTRACT = '0xd87d922719e3267aa78c9537b98a53af03086576afcb23ea7a035b39260cb747';
 
@@ -51,7 +51,7 @@ function bytesToBase64(bytes: Uint8Array): string {
 
 const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
   const { walletAddress, suiBalance, suimonBalance, isConnected } = useSuiWallet();
-  const suiClient = useSuiClient(); // used for blockchain interactions like waitForTransactionBlock
+  const suiClient = useSuiClient(); // Used for blockchain interactions like waitForTransaction
   const currentAccount = useCurrentAccount() as CustomWalletAccount | null;
   const { mutateAsync: signAndExecuteTransactionAsync, isPending } = useSignAndExecuteTransaction();
 
@@ -60,6 +60,7 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
   const [transactionError, setTransactionError] = useState<string | undefined>();
   const [stakeAmount, setStakeAmount] = useState<string>('');
   const [transactionHash, setTransactionHash] = useState<string | undefined>();
+  const [roomId, setRoomId] = useState<string | undefined>();
 
   const formatBalance = (balance: string | null | undefined, tokenType = 'SUI') => {
     if (!balance) return '0';
@@ -88,11 +89,16 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
 
     // Check if user has sufficient balance
     const userBalance = tokenType === 'SUI' ? suiBalance : suimonBalance;
-    const requiredAmount = tokenType === 'SUI' 
-      ? parseFloat(amount) * 1_000_000_000 // Convert SUI to MIST
-      : parseFloat(amount) * 1_000_000_000; // Convert SUIMON to smallest unit (9 decimals)
 
-    if (parseFloat(userBalance) < requiredAmount) {
+    // Both SUI and SUIMON balances are in their smallest units (MIST for SUI)
+    // Convert the stake amount to the smallest unit for comparison
+    const requiredAmount = parseFloat(amount) * 1_000_000_000; // Convert to smallest unit (9 decimals)
+
+    // Compare as BigInt to avoid floating point issues
+    const userBalanceBigInt = BigInt(userBalance || '0');
+    const requiredAmountBigInt = BigInt(Math.floor(requiredAmount));
+
+    if (userBalanceBigInt < requiredAmountBigInt) {
       setTransactionError(`Insufficient ${tokenType} balance`);
       setTransactionStage('error');
       return;
@@ -106,36 +112,24 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
     const ownerAddress = currentAccount.address;
     const tx = new TransactionBlock();
 
-    // Determine which contract to use based on token type
-    const contractAddress = tokenType === 'SUI' ? SUI_GAME_CONTRACT : SUIMON_GAME_CONTRACT;
-    const moduleName = tokenType === 'SUI' ? SUI_MODULE_NAME : SUIMON_MODULE_NAME;
-
     try {
       socketService.emitWalletEvent('transactionStarted', {
         tokenType, amount, walletAddress: ownerAddress, timestamp: new Date().toISOString(),
       });
-      
-      // Log staking details for both players (in this case, only player 1 is staking)
+
       socketService.emitWalletEvent('stakingDetails', {
         gameId: `game_${Date.now()}`,
         tokenType,
-        player1: {
-          address: ownerAddress,
-          amount: amount
-        },
-        player2: {
-          address: 'pending', // Will be filled when player 2 joins
-          amount: amount // Same stake amount for player 2
-        },
-        totalStaked: (parseFloat(amount) * 2).toString(), // Total staked by both players
-        winnerPotential: (parseFloat(amount) * 2 * 0.9).toFixed(6), // 90% of total
-        marketingFee: (parseFloat(amount) * 2 * 0.1).toFixed(6), // 10% of total
-        timestamp: new Date().toISOString()
+        player1: { address: ownerAddress, amount: amount },
+        player2: { address: 'pending', amount: amount },
+        totalStaked: (parseFloat(amount) * 2).toString(),
+        winnerPotential: (parseFloat(amount) * 2 * 0.9).toFixed(6),
+        marketingFee: (parseFloat(amount) * 2 * 0.1).toFixed(6),
+        timestamp: new Date().toISOString(),
       });
 
-      const minimalAmount = tokenType === 'SUI'
-        ? Math.floor(parseFloat(amount) * 1_000_000_000).toString()
-        : Math.floor(parseFloat(amount) * 1_000_000_000).toString(); // Convert SUIMON amount to the smallest unit (9 decimals)
+      // For the transaction, convert amounts to the smallest unit (9 decimals for both SUI and SUIMON)
+      const minimalAmount = Math.floor(parseFloat(amount) * 1_000_000_000).toString(); // Convert to smallest unit
 
       const coinType = tokenType === 'SUI'
         ? '0x2::sui::SUI'
@@ -147,51 +141,68 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
       let paymentCoin;
 
       if (tokenType === 'SUI') {
+        // For SUI, we can use the gas coin directly
         const balance = BigInt(suiBalance || '0');
         const need = BigInt(minimalAmount);
         if (balance < need) throw new Error('Insufficient SUI balance');
         paymentCoin = tx.splitCoins(tx.gas, [tx.pure.u64(minimalAmount)]);
       } else {
+        // For SUIMON, we need to find coins with positive balance
         const available = coins.data.filter(c => BigInt(c.balance) > 0);
         const total = available.reduce((sum, c) => sum + BigInt(c.balance), BigInt(0));
         if (total < BigInt(minimalAmount)) throw new Error('Insufficient SUIMON');
+        
+        // Use the first coin and merge others if needed
         const c0 = tx.object(available[0].coinObjectId);
         if (available.length > 1) {
           tx.mergeCoins(c0, available.slice(1).map(c => tx.object(c.coinObjectId)));
         }
-        // Convert the string to a BigInt first to ensure it's handled correctly
-        const suimonAmount = BigInt(minimalAmount);
-        // Then use pure.u64 for SUIMON tokens
-        paymentCoin = tx.splitCoins(c0, [tx.pure.u64(suimonAmount)]);
+        
+        // Split the coin to get the exact amount needed
+        paymentCoin = tx.splitCoins(c0, [tx.pure.u64(minimalAmount)]);
       }
 
       const contractAddress = tokenType === 'SUI' ? SUI_GAME_CONTRACT : SUIMON_GAME_CONTRACT;
       const moduleName = tokenType === 'SUI' ? SUI_MODULE_NAME : SUIMON_MODULE_NAME;
-      const methodName = tokenType === 'SUI' ? 'create_game' : 'create_room';
+      
+      // Both contracts use 'create_game' method based on the contract code
+      const methodName = 'create_game';
 
+      const timestamp = Date.now();
+      const generatedRoomId = tokenType === 'SUI' ? `Paid_Room_${timestamp}` : `Free_Room_${timestamp}`;
+      setRoomId(generatedRoomId);
+
+      // Based on the contract code, SUI and SUIMON contracts have different parameter expectations
       if (tokenType === 'SUI') {
-        tx.moveCall({
-          target: `${contractAddress}::${moduleName}::${methodName}`,
-          arguments: [paymentCoin],
-        });
-      } else {
-        const roomId = `room_${Date.now()}`;
+        // SUI contract only expects the coin parameter
         tx.moveCall({
           target: `${contractAddress}::${moduleName}::${methodName}`,
           arguments: [
-            paymentCoin,
-            tx.pure.string(roomId),
-            tx.pure.string('Player'),
+            paymentCoin, // Coin object
+          ],
+        });
+      } else {
+        // SUIMON contract expects the coin parameter and might need a context parameter
+        // Let's try with just the coin parameter first as seen in the contract code
+        tx.moveCall({
+          target: `${contractAddress}::${moduleName}::${methodName}`,
+          arguments: [
+            paymentCoin, // Coin object
           ],
         });
       }
+      
+      console.log(`Creating ${tokenType} game with ${amount} tokens, room ID: ${generatedRoomId}`);
+
+      
+      // Add a transaction description for debugging
+      console.log(`Creating ${tokenType} game with ${amount} tokens, room ID: ${generatedRoomId}`);
+
 
       setTransactionStage('signing');
-
-      // Important: set sender!
       tx.setSender(ownerAddress);
 
-      const txBytes = await tx.build({ client: suiRpcClient });  // pass explicit provider here!
+      const txBytes = await tx.build({ client: suiRpcClient });
       const txBase64 = bytesToBase64(txBytes);
 
       const response = await signAndExecuteTransactionAsync({
@@ -208,13 +219,10 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
 
       setTransactionStage('confirming');
 
-      const confirmedTx = await suiClient.waitForTransaction({ //i added waitforTransaction rather than waitForTransactionBlock and it fixed the red underline here
+      const confirmedTx = await suiClient.waitForTransaction({
         digest,
-        options: {
-          showEffects: true,
-          showEvents: true,
-        },
-        timeout: 30000, // Add timeout in milliseconds
+        options: { showEffects: true, showEvents: true },
+        timeout: 30000,
       });
 
       const status = confirmedTx?.effects?.status?.status;
@@ -224,15 +232,14 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
       }
 
       setTransactionStage('success');
-      socketService.emitWalletEvent('transactionSuccess', { 
-        digest, 
-        tokenType, 
+      socketService.emitWalletEvent('transactionSuccess', {
+        digest,
+        tokenType,
         amount,
         gameId: `game_${Date.now()}`,
-        walletAddress: ownerAddress
+        walletAddress: ownerAddress,
       });
-      
-      // Add transaction to player history
+
       socketService.emitWalletEvent('addTransaction', {
         playerId: ownerAddress,
         gameId: `game_${Date.now()}`,
@@ -240,7 +247,7 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
         tokenType,
         amount,
         transactionHash: digest,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
 
     } catch (error: any) {
@@ -336,6 +343,7 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
             tokenType={selectedToken}
             amount={stakeAmount}
             transactionHash={transactionHash}
+            roomId={roomId}
           />
         )
       )}
