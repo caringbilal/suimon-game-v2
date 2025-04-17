@@ -96,9 +96,15 @@ export const SuiWalletProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const totalSuimonBalance = suimonCoinsData && Array.isArray(suimonCoinsData) && suimonCoinsData.length > 0
         ? suimonCoinsData.reduce((acc: bigint, coin: {balance: string}) => acc + BigInt(coin.balance), BigInt(0))
         : BigInt(0);
-      // Format SUIMON balance with 9 decimal places
-      const formattedSuimonBalance = (Number(totalSuimonBalance) / 1_000_000_000).toString();
-      setSuimonBalance(formattedSuimonBalance);
+      // Store the raw balance value (don't divide by 1_000_000_000 here)
+      // This ensures the GameOptions component has the correct raw value for transaction validation
+      setSuimonBalance(totalSuimonBalance.toString());
+      
+      // Log the actual balance for debugging
+      console.log('SUIMON Balance (raw):', totalSuimonBalance.toString());
+      console.log('SUIMON Balance (formatted):', (Number(totalSuimonBalance) / 1_000_000_000).toString());
+      
+      // If the user has 5 million SUIMON tokens, the raw balance should be 5,000,000 * 10^9
 
     } catch (error) {
       console.error('Error updating balances:', error);
