@@ -1,5 +1,5 @@
 module suimon_token_paid_room::suimon_staking {
-    use sui::object::{Self, UID};
+    use sui::object::{Self, UID, ID};
     use sui::transfer;
     use sui::tx_context::{Self, TxContext};
     use sui::coin::{Self, Coin};
@@ -7,7 +7,7 @@ module suimon_token_paid_room::suimon_staking {
     use sui::event;
     use std::option::{Self, Option};
 
-    // Type for our SUIMON token
+    // Import SUIMON_TOKEN from the correct module path
     use suimon_token::suimon_token::SUIMON_TOKEN;
 
     // Constants
@@ -17,7 +17,6 @@ module suimon_token_paid_room::suimon_staking {
     const ERR_GAME_ALREADY_STARTED: u64 = 1;
     const ERR_GAME_NOT_STARTED: u64 = 2;
     const ERR_INVALID_PLAYER: u64 = 3;
-    const ERR_GAME_ALREADY_FINISHED: u64 = 4;
     const ERR_INSUFFICIENT_STAKE: u64 = 5;
 
     // Game room status
@@ -25,7 +24,7 @@ module suimon_token_paid_room::suimon_staking {
     const GAME_STATUS_STARTED: u8 = 1;
     const GAME_STATUS_FINISHED: u8 = 2;
 
-    // Events
+    // Define event types
     struct GameRoomCreated has copy, drop {
         game_id: ID,
         creator: address,

@@ -3,8 +3,10 @@ name = "suimon_suimon_staking"
 version = "0.0.1"
 
 [dependencies]
-Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "framework/testnet" }
+# Sui framework is automatically added by the compiler
+suimon_token = { local = "../SUIMON token" }
 
 [addresses]
-suimon_suimon_staking = "0xd87d922719e3267aa78c9537b98a53af03086576afcb23ea7a035b39260cb747"
+suimon_token_paid_room = "0x0"
+suimon_token = "0xaae614cf7c6801a95b25d32bd3b9006d4b9f9841e9876584de37e885062d9425"
 suimon_game = "0x0"
