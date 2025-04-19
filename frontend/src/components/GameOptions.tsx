@@ -8,8 +8,9 @@ import { socketService } from '../services/socketService';
 import { SUIMON_COIN_TYPE } from '../utils/suimonTokenUtils';
 import './GameOptions.css';
 
-// Explicit client for offline tx build
-const suiRpcClient = new SuiClient({ url: getFullnodeUrl('testnet') });
+// Configure the network
+const NETWORK = 'testnet'; // Options: 'testnet', 'devnet', 'mainnet'
+const suiRpcClient = new SuiClient({ url: getFullnodeUrl(NETWORK) });
 
 // Contract addresses
 const SUI_GAME_CONTRACT = '0xba02ab9d67f2058424da11e1f063bff31683fd229a8408d87c018dea223ce4f0';
@@ -17,7 +18,7 @@ const SUI_MODULE_NAME = 'game';
 
 // SUIMON contract addresses
 const SUIMON_GAME_CONTRACT = '0x10d78dba03c656a2e9e6e88183b643128483ca38be8e4f8219ee73ef7fd10a22';
-const SUIMON_MODULE_NAME = 'suimon_token_paid_room::suimon_staking';
+const SUIMON_MODULE_NAME = 'suimon_staking'; // Fixed: Removed incorrect 'suimon_token_paid_room' prefix
 
 // Expected SUIMON_COIN_TYPE for validation
 const EXPECTED_SUIMON_COIN_TYPE = '0xaae614cf7c6801a95b25d32bd3b9006d4b9f9841e9876584de37e885062d9425::suimon_token::SUIMON_TOKEN';
