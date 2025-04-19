@@ -9,7 +9,7 @@ import { SUIMON_COIN_TYPE } from '../utils/suimonTokenUtils';
 import './GameOptions.css';
 
 // Explicit client for offline tx build
-const suiRpcClient = new SuiClient({ url: getFullnodeUrl('testnet') }); // or 'mainnet'
+const suiRpcClient = new SuiClient({ url: getFullnodeUrl('testnet') });
 
 // Contract addresses
 const SUI_GAME_CONTRACT = '0xba02ab9d67f2058424da11e1f063bff31683fd229a8408d87c018dea223ce4f0';
@@ -18,6 +18,9 @@ const SUI_MODULE_NAME = 'game';
 // SUIMON contract addresses
 const SUIMON_GAME_CONTRACT = '0x10d78dba03c656a2e9e6e88183b643128483ca38be8e4f8219ee73ef7fd10a22';
 const SUIMON_MODULE_NAME = 'suimon_token_paid_room::suimon_staking';
+
+// Expected SUIMON_COIN_TYPE for validation
+const EXPECTED_SUIMON_COIN_TYPE = '0xaae614cf7c6801a95b25d32bd3b9006d4b9f9841e9876584de37e885062d9425::suimon_token::SUIMON_TOKEN';
 
 type TokenType = 'SUI' | 'SUIMON';
 
@@ -52,7 +55,7 @@ function bytesToBase64(bytes: Uint8Array): string {
 
 const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
   const { walletAddress, suiBalance, suimonBalance, isConnected } = useSuiWallet();
-  const suiClient = useSuiClient(); // Used for blockchain interactions like waitForTransaction
+  const suiClient = useSuiClient();
   const currentAccount = useCurrentAccount() as CustomWalletAccount | null;
   const { mutateAsync: signAndExecuteTransactionAsync, isPending } = useSignAndExecuteTransaction();
 
@@ -66,7 +69,6 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
   const formatBalance = (balance: string | null | undefined, isSuimon: boolean = false) => {
     if (!balance) return '0';
     try {
-      // Always divide by 1_000_000_000 for display purposes
       const num = parseFloat(balance) / 1_000_000_000;
       if (isNaN(num)) return '0';
       if (num === 0) return '0';
@@ -86,21 +88,16 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
       return;
     }
 
-    // Check if user has sufficient balance
-    // Convert the stake amount to the smallest unit for comparison
-    const requiredAmount = parseFloat(amount) * 1_000_000_000; // Convert to smallest unit (9 decimals)
-
-    // Compare as BigInt to avoid floating point issues
-    // Note: suimonBalance is already in the smallest unit (raw blockchain value)
+    const requiredAmount = parseFloat(amount) * 1_000_000_000;
     const userBalanceBigInt = BigInt(selectedToken === 'SUI' ? suiBalance || '0' : suimonBalance || '0');
     const requiredAmountBigInt = BigInt(Math.floor(requiredAmount));
-    
+
     console.log(`Balance check for ${selectedToken}:`, {
       amount,
       requiredAmount: requiredAmount.toString(),
       userBalance: selectedToken === 'SUI' ? suiBalance : suimonBalance,
       userBalanceFormatted: formatBalance(selectedToken === 'SUI' ? suiBalance : suimonBalance, selectedToken === 'SUIMON'),
-      hasEnough: userBalanceBigInt >= requiredAmountBigInt
+      hasEnough: userBalanceBigInt >= requiredAmountBigInt,
     });
 
     if (userBalanceBigInt < requiredAmountBigInt) {
@@ -119,7 +116,10 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
 
     try {
       socketService.emitWalletEvent('transactionStarted', {
-        tokenType: selectedToken, amount, walletAddress: ownerAddress, timestamp: new Date().toISOString(),
+        tokenType: selectedToken,
+        amount,
+        walletAddress: ownerAddress,
+        timestamp: new Date().toISOString(),
       });
 
       socketService.emitWalletEvent('stakingDetails', {
@@ -133,15 +133,12 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
         timestamp: new Date().toISOString(),
       });
 
-      // For the transaction, convert amounts to the smallest unit (9 decimals)
-      const minimalAmount = Math.floor(parseFloat(amount) * 1_000_000_000).toString(); // Convert to smallest unit
-
+      const minimalAmount = Math.floor(parseFloat(amount) * 1_000_000_000).toString();
       let paymentCoin;
       let generatedRoomId;
       const timestamp = Date.now();
 
       if (selectedToken === 'SUI') {
-        // For SUI, we can use the gas coin directly
         const balance = BigInt(suiBalance || '0');
         const need = BigInt(minimalAmount);
         if (balance < need) throw new Error('Insufficient SUI balance');
@@ -150,84 +147,85 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
         generatedRoomId = `Paid_SUI_Room_${timestamp}`;
         setRoomId(generatedRoomId);
 
-        // SUI contract only expects the coin parameter
         tx.moveCall({
           target: `${SUI_GAME_CONTRACT}::${SUI_MODULE_NAME}::create_game`,
-          arguments: [
-            paymentCoin, // Coin object
-          ],
+          arguments: [paymentCoin],
         });
-        
+
         console.log(`Creating SUI game with ${amount} tokens, room ID: ${generatedRoomId}`);
       } else {
-        // For SUIMON, we need to find coins with positive balance
-        const coins = await suiClient.getCoins({ 
-          owner: ownerAddress, 
-          coinType: SUIMON_COIN_TYPE 
+        if (SUIMON_COIN_TYPE !== EXPECTED_SUIMON_COIN_TYPE) {
+          throw new Error(`Invalid SUIMON_COIN_TYPE. Expected: ${EXPECTED_SUIMON_COIN_TYPE}, but got: ${SUIMON_COIN_TYPE}`);
+        }
+
+        const coins = await suiClient.getCoins({
+          owner: ownerAddress,
+          coinType: SUIMON_COIN_TYPE,
         });
-        
+
         if (!coins.data || coins.data.length === 0) {
           throw new Error('No SUIMON coins found');
         }
 
-        // Enhanced debugging for SUIMON balance check
         console.log('SUIMON Balance Check:', {
           userBalance: suimonBalance,
           userBalanceFormatted: formatBalance(suimonBalance),
           requiredAmount: requiredAmount.toString(),
           requiredAmountBigInt: requiredAmountBigInt.toString(),
           userBalanceBigInt: userBalanceBigInt.toString(),
-          hasEnough: userBalanceBigInt >= requiredAmountBigInt
+          hasEnough: userBalanceBigInt >= requiredAmountBigInt,
         });
 
-        // Filter coins with positive balance
         const available = coins.data.filter(c => BigInt(c.balance) > 0);
         const total = available.reduce((sum, c) => sum + BigInt(c.balance), BigInt(0));
-        
+
         console.log('SUIMON Transaction Details:', {
           availableCoins: available.length,
           coinsData: available.map(c => ({ id: c.coinObjectId, balance: c.balance })),
           totalBalance: total.toString(),
           requiredAmount: minimalAmount,
-          hasEnough: total >= BigInt(minimalAmount)
+          hasEnough: total >= BigInt(minimalAmount),
+          coinType: SUIMON_COIN_TYPE,
         });
-        
+
         if (total < BigInt(minimalAmount)) {
           throw new Error('Insufficient SUIMON balance');
         }
-        
-        // Use the first coin and merge others if needed
+
         if (available.length === 0) {
           throw new Error('No SUIMON coins with positive balance found');
         }
-        
+
         const c0 = tx.object(available[0].coinObjectId);
         if (available.length > 1) {
-          // Merge all other coins into the first one
           tx.mergeCoins(c0, available.slice(1).map(c => tx.object(c.coinObjectId)));
         }
-        
-        // Split the coin to get the exact amount needed
-        // Make sure we're using the correct format for the amount
+
         paymentCoin = tx.splitCoins(c0, [tx.pure.u64(minimalAmount)]);
 
         generatedRoomId = `Paid_SUIMON_Room_${timestamp}`;
         setRoomId(generatedRoomId);
 
-        // Call the SUIMON contract method
+        console.log('SUIMON Move Call Details:', {
+          target: `${SUIMON_GAME_CONTRACT}::${SUIMON_MODULE_NAME}::create_game`,
+          arguments: [paymentCoin],
+        });
+
         tx.moveCall({
           target: `${SUIMON_GAME_CONTRACT}::${SUIMON_MODULE_NAME}::create_game`,
-          arguments: [
-            paymentCoin, // Coin object
-          ],
+          arguments: [paymentCoin],
         });
-        
+
         console.log(`Creating SUIMON game with ${amount} tokens, room ID: ${generatedRoomId}`);
       }
 
       setTransactionStage('signing');
       tx.setSender(ownerAddress);
 
+      // Set the gas budget on the TransactionBlock
+      tx.setGasBudget(100000000); // 100M MIST
+
+      // Serialize the TransactionBlock to base64
       const txBytes = await tx.build({ client: suiRpcClient });
       const txBase64 = bytesToBase64(txBytes);
 
@@ -275,18 +273,23 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
         transactionHash: digest,
         timestamp: new Date().toISOString(),
       });
-
     } catch (error: any) {
       console.error('Stake error:', error);
-      let msg = error?.message || 'An unknown error';
+      let msg = error?.message || 'An unknown error occurred';
       if (
         error?.name === 'UserRejectedRequestError' ||
         msg.includes('rejected') ||
         msg.includes('cancelled') ||
         msg.includes('denied')
-      ) msg = 'Transaction rejected or cancelled';
-      else if (msg.includes('Insufficient') || msg.includes('balance') || msg.includes('gas'))
+      ) {
+        msg = 'Transaction rejected or cancelled';
+      } else if (msg.includes('Insufficient') || msg.includes('balance') || msg.includes('gas')) {
         msg = `Insufficient ${selectedToken} balance`;
+      } else if (msg.includes('VMVerificationOrDeserializationError')) {
+        msg = 'Failed to verify the transaction. Please check the smart contract configuration or wallet compatibility.';
+      } else if (msg.includes('toJSON is not a function')) {
+        msg = 'Transaction serialization failed. Please ensure the library versions are compatible.';
+      }
       setTransactionStage('error');
       setTransactionError(msg);
       socketService.emitWalletEvent('transactionError', { error: msg, tokenType: selectedToken, amount });
@@ -343,8 +346,7 @@ const GameOptions: React.FC<GameOptionsProps> = ({ onCreateGame }) => {
             <button
               className="stake-now-button"
               onClick={() => handleStakeButtonClick(stakeAmount)}
-              disabled={!stakeAmount || transactionStage !== 'idle' || isPending}
-            >
+              disabled={!stakeAmount || transactionStage !== 'idle' || isPending}>
               {stakeAmount ? `Stake ${stakeAmount} ${selectedToken}` : 'Select Amount'}
             </button>
           ) : (
